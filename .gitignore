@@ -50,10 +50,11 @@ datasets/
 data/*.zip
 data/*.tar*
 VOC/
+data/
 .gitignore-original
 requirements-original.txt
-pyproject-original.toml
 tests/
+pyproject-original
 
 
 # ===== Логи =====
