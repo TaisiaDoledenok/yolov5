@@ -21,6 +21,7 @@ from utils import TryExcept, threaded
 from utils.general import LOGGER, xywh2xyxy, xyxy2xywh
 from utils.metrics import fitness
 
+
 # Settings
 RANK = int(os.getenv("RANK", "-1"))
 matplotlib.rc("font", size=11)
@@ -133,7 +134,15 @@ def plot_val_study(file="", dir="", x=None):
         y = np.loadtxt(f, dtype=np.float32, usecols=[0, 1, 2, 3, 7, 8, 9], ndmin=2).T
         x = np.arange(y.shape[1]) if x is None else np.array(x)
         if plot2:
-            s = ["P", "R", "mAP@.5", "mAP@.5:.95", "t_preprocess (ms/img)", "t_inference (ms/img)", "t_NMS (ms/img)"]
+            s = [
+                "P",
+                "R",
+                "mAP@.5",
+                "mAP@.5:.95",
+                "t_preprocess (ms/img)",
+                "t_inference (ms/img)",
+                "t_NMS (ms/img)",
+            ]
             for i in range(7):
                 ax[i].plot(x, y[i], ".-", linewidth=2, markersize=8)
                 ax[i].set_title(s[i])
@@ -179,7 +188,14 @@ def plot_labels(labels, names=(), save_dir=Path("")):
     x = pd.DataFrame(b.transpose(), columns=["x", "y", "width", "height"])
 
     # seaborn correlogram
-    sn.pairplot(x, corner=True, diag_kind="auto", kind="hist", diag_kws={"bins": 50}, plot_kws={"pmax": 0.9})
+    sn.pairplot(
+        x,
+        corner=True,
+        diag_kind="auto",
+        kind="hist",
+        diag_kws={"bins": 50},
+        plot_kws={"pmax": 0.9},
+    )
     plt.savefig(save_dir / "labels_correlogram.jpg", dpi=200)
     plt.close()
 

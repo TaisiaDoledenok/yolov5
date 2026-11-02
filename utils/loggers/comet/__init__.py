@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+
 logger = logging.getLogger(__name__)
 
 FILE = Path(__file__).resolve()
@@ -32,6 +33,7 @@ import yaml
 from utils.dataloaders import img2label_paths
 from utils.general import check_dataset, scale_boxes, xywh2xyxy
 from utils.metrics import box_iou
+
 
 COMET_PREFIX = "comet://"
 
@@ -320,7 +322,7 @@ class CometLogger:
         img_paths = sorted(glob.glob(f"{asset_path}/*"))
         label_paths = img2label_paths(img_paths)
 
-        for image_file, label_file in zip(img_paths, label_paths):
+        for image_file, label_file in zip(img_paths, label_paths, strict=False):
             image_logical_path, label_logical_path = (os.path.relpath(x, path) for x in [image_file, label_file])
 
             try:
@@ -378,7 +380,7 @@ class CometLogger:
         if isinstance(metadata_names, dict):
             data_dict["names"] = {int(k): v for k, v in metadata.get("names").items()}
         elif isinstance(metadata_names, list):
-            data_dict["names"] = {int(k): v for k, v in zip(range(len(metadata_names)), metadata_names)}
+            data_dict["names"] = {int(k): v for k, v in zip(range(len(metadata_names)), metadata_names, strict=False)}
         else:
             raise ValueError("Invalid 'names' field in dataset yaml file. Please use a list or dictionary")  # noqa: TRY004
 

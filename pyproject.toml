@@ -46,7 +46,7 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     ]
 
-# Required dependencies 
+# Required dependencies
 dependencies = [
     "matplotlib>=3.3.0",
     "numpy>=1.23.5",
@@ -55,7 +55,6 @@ dependencies = [
     "pyyaml>=5.3.1",
     "requests>=2.32.2",
     "scipy>=1.4.1",
-    "torch>=1.8.0",
     "torchvision>=0.9.0",
     "psutil", # system utilization
     "ultralytics-thop>=2.2.1", # FLOPs computation https://github.com/ultralytics/thop
@@ -65,7 +64,7 @@ dependencies = [
     "ultralytics>=8.4.164"
 ]
 
-# Optional dependencies 
+# Optional dependencies
 [project.optional-dependencies]
 dev = [
     "ipython",
@@ -80,16 +79,10 @@ export = [
     "onnx>=1.12.0", # ONNX export
     "coremltools>=9.0; platform_system != 'Windows'", # CoreML only supported on macOS and Linux
     "openvino>=2024.0.0", # OpenVINO export
-    "tensorflow>=2.0.0,<=2.19.0", # TF bug https://github.com/ultralytics/ultralytics/issues/5161
-    "tensorflowjs>=3.9.0", # TF.js export, automatically installs tensorflow
-    "keras>=3.5.0,<=3.12.0", # pin to avoid XNNPACK errors
 ]
 # tflite-support  # for TFLite model metadata
-# tensorrt  # TensorRT export
-logging = [
-    "comet_ml", # https://docs.ultralytics.com/integrations/comet
-    "tensorboard>=2.13.0",
-]
+
+
 extra = [
     "ipython", # interactive notebook
     "albumentations>=1.0.3", # training augmentations
@@ -101,7 +94,7 @@ extra = [
 "Funding" = "https://ultralytics.com"
 "Source" = "https://github.com/ultralytics/yolov5/"
 
-# Tools settings 
+# Tools settings
 [tool.ruff]
 line-length = 88
 target-version = "py311"

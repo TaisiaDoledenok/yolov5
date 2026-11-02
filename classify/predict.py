@@ -37,6 +37,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -47,7 +48,13 @@ from ultralytics.utils.plotting import Annotator
 
 from models.common import DetectMultiBackend
 from utils.augmentations import classify_transforms
-from utils.dataloaders import IMG_FORMATS, VID_FORMATS, LoadImages, LoadScreenshots, LoadStreams
+from utils.dataloaders import (
+    IMG_FORMATS,
+    VID_FORMATS,
+    LoadImages,
+    LoadScreenshots,
+    LoadStreams,
+)
 from utils.general import (
     LOGGER,
     Profile,
@@ -106,17 +113,31 @@ def run(
     bs = 1  # batch_size
     if webcam:
         view_img = check_imshow(warn=True)
-        dataset = LoadStreams(source, img_size=imgsz, transforms=classify_transforms(imgsz[0]), vid_stride=vid_stride)
+        dataset = LoadStreams(
+            source,
+            img_size=imgsz,
+            transforms=classify_transforms(imgsz[0]),
+            vid_stride=vid_stride,
+        )
         bs = len(dataset)
     elif screenshot:
         dataset = LoadScreenshots(source, img_size=imgsz, transforms=classify_transforms(imgsz[0]))
     else:
-        dataset = LoadImages(source, img_size=imgsz, transforms=classify_transforms(imgsz[0]), vid_stride=vid_stride)
+        dataset = LoadImages(
+            source,
+            img_size=imgsz,
+            transforms=classify_transforms(imgsz[0]),
+            vid_stride=vid_stride,
+        )
     vid_path, vid_writer = [None] * bs, [None] * bs
 
     # Run inference
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
-    seen, windows, dt = 0, [], (Profile(device=device), Profile(device=device), Profile(device=device))
+    seen, windows, dt = (
+        0,
+        [],
+        (Profile(device=device), Profile(device=device), Profile(device=device)),
+    )
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.Tensor(im).to(model.device)
@@ -209,18 +230,50 @@ def run(
 def parse_opt():
     """Parses command line arguments for YOLOv5 inference settings including model, source, device, and image size."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s-cls.pt", help="model path(s)")
-    parser.add_argument("--source", type=str, default=ROOT / "data/images", help="file/dir/URL/glob/screen/0(webcam)")
-    parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="(optional) dataset.yaml path")
-    parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int, default=[224], help="inference size h,w")
+    parser.add_argument(
+        "--weights",
+        nargs="+",
+        type=str,
+        default=ROOT / "yolov5s-cls.pt",
+        help="model path(s)",
+    )
+    parser.add_argument(
+        "--source",
+        type=str,
+        default=ROOT / "data/images",
+        help="file/dir/URL/glob/screen/0(webcam)",
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=ROOT / "data/coco128.yaml",
+        help="(optional) dataset.yaml path",
+    )
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        nargs="+",
+        type=int,
+        default=[224],
+        help="inference size h,w",
+    )
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--view-img", action="store_true", help="show results")
     parser.add_argument("--save-txt", action="store_true", help="save results to *.txt")
     parser.add_argument("--nosave", action="store_true", help="do not save images/videos")
     parser.add_argument("--update", action="store_true", help="update all models")
-    parser.add_argument("--project", default=ROOT / "runs/predict-cls", help="save results to project/name")
+    parser.add_argument(
+        "--project",
+        default=ROOT / "runs/predict-cls",
+        help="save results to project/name",
+    )
     parser.add_argument("--name", default="exp", help="save results to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
     parser.add_argument("--dnn", action="store_true", help="use OpenCV DNN for ONNX inference")
     parser.add_argument("--vid-stride", type=int, default=1, help="video frame-rate stride")

@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -97,7 +98,7 @@ def save_one_json(predn, jdict, path, class_map):
     image_id = int(path.stem) if path.stem.isnumeric() else path.stem
     box = xyxy2xywh(predn[:, :4])  # xywh
     box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
-    for p, b in zip(predn.tolist(), box.tolist()):
+    for p, b in zip(predn.tolist(), box.tolist(), strict=False):
         jdict.append(
             {
                 "image_id": image_id,
@@ -182,7 +183,12 @@ def run(
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
-        device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
+        device, pt, jit, engine = (
+            next(model.parameters()).device,
+            True,
+            False,
+            False,
+        )  # get model device, PyTorch model
         half &= device.type != "cpu"  # half precision only supported on CUDA
         model.half() if half else model.float()
     else:  # called directly
@@ -245,9 +251,32 @@ def run(
     if isinstance(names, (list, tuple)):  # old format
         names = dict(enumerate(names))
     class_map = coco80_to_coco91_class() if is_coco else list(range(1000))
-    s = ("%22s" + "%11s" * 6) % ("Class", "Images", "Instances", "P", "R", "mAP50", "mAP50-95")
-    tp, fp, p, r, f1, mp, mr, map50, ap50, map = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-    dt = Profile(device=device), Profile(device=device), Profile(device=device)  # profiling times
+    s = ("%22s" + "%11s" * 6) % (
+        "Class",
+        "Images",
+        "Instances",
+        "P",
+        "R",
+        "mAP50",
+        "mAP50-95",
+    )
+    tp, fp, p, r, f1, mp, mr, map50, ap50, map = (
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+    dt = (
+        Profile(device=device),
+        Profile(device=device),
+        Profile(device=device),
+    )  # profiling times
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
     callbacks.run("on_val_start")
@@ -275,7 +304,13 @@ def run(
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         with dt[2]:
             preds = non_max_suppression(
-                preds, conf_thres, iou_thres, labels=lb, multi_label=True, agnostic=single_cls, max_det=max_det
+                preds,
+                conf_thres,
+                iou_thres,
+                labels=lb,
+                multi_label=True,
+                agnostic=single_cls,
+                max_det=max_det,
             )
 
         # Metrics
@@ -312,7 +347,12 @@ def run(
             # Save/log
             if save_txt:
                 (save_dir / "labels").mkdir(parents=True, exist_ok=True)
-                save_one_txt(predn, save_conf, shape, file=save_dir / "labels" / f"{path.stem}.txt")
+                save_one_txt(
+                    predn,
+                    save_conf,
+                    shape,
+                    file=save_dir / "labels" / f"{path.stem}.txt",
+                )
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
             callbacks.run("on_val_image_end", pred, predn, path, names, im[si])
@@ -320,12 +360,18 @@ def run(
         # Plot images
         if plots and batch_i < 3:
             plot_images(im, targets, paths, save_dir / f"val_batch{batch_i}_labels.jpg", names)  # labels
-            plot_images(im, output_to_target(preds), paths, save_dir / f"val_batch{batch_i}_pred.jpg", names)  # pred
+            plot_images(
+                im,
+                output_to_target(preds),
+                paths,
+                save_dir / f"val_batch{batch_i}_pred.jpg",
+                names,
+            )  # pred
 
         callbacks.run("on_val_batch_end", batch_i, im, targets, paths, shapes, preds)
 
     # Compute metrics
-    stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
+    stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats, strict=False)]  # to numpy
     if len(stats) and stats[0].any():
         tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
@@ -442,25 +488,51 @@ def parse_opt():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="dataset.yaml path")
-    parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s.pt", help="model path(s)")
+    parser.add_argument(
+        "--weights",
+        nargs="+",
+        type=str,
+        default=ROOT / "yolov5s.pt",
+        help="model path(s)",
+    )
     parser.add_argument("--batch-size", type=int, default=32, help="batch size")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=640, help="inference size (pixels)")
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=640,
+        help="inference size (pixels)",
+    )
     parser.add_argument("--conf-thres", type=float, default=0.001, help="confidence threshold")
     parser.add_argument("--iou-thres", type=float, default=0.6, help="NMS IoU threshold")
     parser.add_argument("--max-det", type=int, default=300, help="maximum detections per image")
     parser.add_argument("--task", default="val", help="train, val, test, speed or study")
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument("--workers", type=int, default=8, help="max dataloader workers (per RANK in DDP mode)")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="max dataloader workers (per RANK in DDP mode)",
+    )
     parser.add_argument("--single-cls", action="store_true", help="treat as single-class dataset")
     parser.add_argument("--augment", action="store_true", help="augmented inference")
     parser.add_argument("--verbose", action="store_true", help="report mAP by class")
     parser.add_argument("--save-txt", action="store_true", help="save results to *.txt")
-    parser.add_argument("--save-hybrid", action="store_true", help="save label+prediction hybrid results to *.txt")
+    parser.add_argument(
+        "--save-hybrid",
+        action="store_true",
+        help="save label+prediction hybrid results to *.txt",
+    )
     parser.add_argument("--save-conf", action="store_true", help="save confidences in --save-txt labels")
     parser.add_argument("--save-json", action="store_true", help="save a COCO-JSON results file")
     parser.add_argument("--project", default=ROOT / "runs/val", help="save to project/name")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
     parser.add_argument("--dnn", action="store_true", help="use OpenCV DNN for ONNX inference")
     opt = parser.parse_args()
@@ -511,7 +583,10 @@ def main(opt):
             # python val.py --task study --data coco.yaml --iou 0.7 --weights yolov5n.pt yolov5s.pt...
             for opt.weights in weights:
                 f = f"study_{Path(opt.data).stem}_{Path(opt.weights).stem}.txt"  # filename to save to
-                x, y = list(range(256, 1536 + 128, 128)), []  # x axis (image sizes), y axis
+                x, y = (
+                    list(range(256, 1536 + 128, 128)),
+                    [],
+                )  # x axis (image sizes), y axis
                 for opt.imgsz in x:  # img-size
                     LOGGER.info(f"\nRunning {f} --imgsz {opt.imgsz}...")
                     r, _, t = run(**vars(opt), plots=False)

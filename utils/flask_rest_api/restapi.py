@@ -10,6 +10,7 @@ from flask import Flask, request
 from PIL import Image
 from werkzeug.exceptions import RequestEntityTooLarge
 
+
 DETECTION_URL = "/v1/object-detection/<model>"
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "bmp", "tiff", "webp"}
 MAX_IMAGE_SIZE = 16 * 1024 * 1024  # 16 MB
@@ -67,7 +68,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Flask API exposing YOLOv5 model")
     parser.add_argument("--port", default=5000, type=int, help="port number")
-    parser.add_argument("--model", nargs="+", default=["yolov5s"], help="model(s) to run, i.e. --model yolov5n yolov5s")
+    parser.add_argument(
+        "--model",
+        nargs="+",
+        default=["yolov5s"],
+        help="model(s) to run, i.e. --model yolov5n yolov5s",
+    )
     opt = parser.parse_args()
 
     for m in opt.model:

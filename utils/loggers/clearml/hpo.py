@@ -7,6 +7,7 @@ from clearml import Task
 from clearml.automation import HyperParameterOptimizer, UniformParameterRange
 from clearml.automation.optuna import OptimizerOptuna
 
+
 task = Task.init(
     project_name="Hyper-Parameter Optimization",
     task_name="YOLOv5",

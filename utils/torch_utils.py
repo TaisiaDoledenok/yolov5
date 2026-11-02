@@ -13,6 +13,7 @@ import torch.distributed as dist
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+
 try:
     from torch.amp import GradScaler
 except ImportError:
@@ -31,6 +32,7 @@ from ultralytics.utils.torch_utils import (  # noqa: F401
 )
 
 from utils.general import LOGGER, check_version, colorstr, file_date, git_describe
+
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "-1"))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", "-1"))
@@ -96,7 +98,13 @@ def reshape_classifier_output(model, n=1000):
         elif nn.Conv2d in types:
             i = len(types) - 1 - types[::-1].index(nn.Conv2d)  # last nn.Conv2d index
             if m[i].out_channels != n:
-                m[i] = nn.Conv2d(m[i].in_channels, n, m[i].kernel_size, m[i].stride, bias=m[i].bias is not None)
+                m[i] = nn.Conv2d(
+                    m[i].in_channels,
+                    n,
+                    m[i].kernel_size,
+                    m[i].stride,
+                    bias=m[i].bias is not None,
+                )
 
 
 @contextmanager
@@ -121,9 +129,9 @@ def select_device(device="", batch_size=0, newline=True):
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # force torch.cuda.is_available() = False
     elif device:  # non-cpu device requested
         os.environ["CUDA_VISIBLE_DEVICES"] = device  # set environment variable - must be before assert is_available()
-        assert torch.cuda.is_available() and torch.cuda.device_count() >= len(device.replace(",", "")), (
-            f"Invalid CUDA '--device {device}' requested, use '--device cpu' or pass valid CUDA device(s)"
-        )
+        assert torch.cuda.is_available() and torch.cuda.device_count() >= len(
+            device.replace(",", "")
+        ), f"Invalid CUDA '--device {device}' requested, use '--device cpu' or pass valid CUDA device(s)"
 
     if not cpu and not mps and torch.cuda.is_available():  # prefer GPU if available
         devices = device.split(",") if device else "0"  # range(torch.cuda.device_count())  # i.e. 0,1,6,7

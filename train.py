@@ -25,6 +25,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from pathlib import Path
 
+
 try:
     import comet_ml  # must be imported before torch (if installed)
 except ImportError:
@@ -36,6 +37,7 @@ import torch.distributed as dist
 import yaml
 from torch import nn
 from torch.optim import lr_scheduler
+
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -97,6 +99,7 @@ from utils.torch_utils import (
     torch_distributed_zero_first,
 )
 
+
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "-1"))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", "-1"))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", "1"))
@@ -137,7 +140,21 @@ def train(hyp, opt, device, callbacks):
     Notes:
         Models and datasets download automatically from the latest YOLOv5 release.
     """
-    save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze = (
+    (
+        save_dir,
+        epochs,
+        batch_size,
+        weights,
+        single_cls,
+        evolve,
+        data,
+        cfg,
+        resume,
+        noval,
+        nosave,
+        workers,
+        freeze,
+    ) = (
         Path(opt.save_dir),
         opt.epochs,
         opt.batch_size,
@@ -183,7 +200,12 @@ def train(hyp, opt, device, callbacks):
         # Process custom dataset artifact link
         data_dict = loggers.remote_dataset
         if resume:  # If resuming runs from remote artifact
-            weights, epochs, hyp, batch_size = opt.weights, opt.epochs, opt.hyp, opt.batch_size
+            weights, epochs, hyp, batch_size = (
+                opt.weights,
+                opt.epochs,
+                opt.hyp,
+                opt.batch_size,
+            )
 
     # Config
     plots = not evolve and not opt.noplots  # create plots
@@ -370,11 +392,25 @@ def train(hyp, opt, device, callbacks):
         if RANK != -1:
             train_loader.sampler.set_epoch(epoch)
         pbar = enumerate(train_loader)
-        LOGGER.info(("\n" + "%11s" * 7) % ("Epoch", "GPU_mem", "box_loss", "obj_loss", "cls_loss", "Instances", "Size"))
+        LOGGER.info(
+            ("\n" + "%11s" * 7)
+            % (
+                "Epoch",
+                "GPU_mem",
+                "box_loss",
+                "obj_loss",
+                "cls_loss",
+                "Instances",
+                "Size",
+            )
+        )
         if RANK in {-1, 0}:
             pbar = TQDM(pbar, total=nb)  # progress bar
         optimizer.zero_grad()
-        for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
+        for (
+            i,
+            (imgs, targets, paths, _),
+        ) in pbar:  # batch -------------------------------------------------------------
             callbacks.run("on_train_batch_start")
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
@@ -386,7 +422,14 @@ def train(hyp, opt, device, callbacks):
                 accumulate = max(1, np.interp(ni, xi, [1, nbs / batch_size]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                    x["lr"] = np.interp(ni, xi, [hyp["warmup_bias_lr"] if j == 0 else 0.0, x["initial_lr"] * lf(epoch)])
+                    x["lr"] = np.interp(
+                        ni,
+                        xi,
+                        [
+                            hyp["warmup_bias_lr"] if j == 0 else 0.0,
+                            x["initial_lr"] * lf(epoch),
+                        ],
+                    )
                     if "momentum" in x:
                         x["momentum"] = np.interp(ni, xi, [hyp["warmup_momentum"], hyp["momentum"]])
 
@@ -427,7 +470,13 @@ def train(hyp, opt, device, callbacks):
                 mem = f"{torch.cuda.memory_reserved() / 1e9 if torch.cuda.is_available() else 0:.3g}G"  # (GB)
                 pbar.set_description(
                     ("%11s" * 2 + "%11.4g" * 5)
-                    % (f"{epoch}/{epochs - 1}", mem, *mloss, targets.shape[0], imgs.shape[-1])
+                    % (
+                        f"{epoch}/{epochs - 1}",
+                        mem,
+                        *mloss,
+                        targets.shape[0],
+                        imgs.shape[-1],
+                    )
                 )
                 callbacks.run("on_train_batch_end", model, ni, imgs, targets, paths, list(mloss))
                 if callbacks.stop_training:
@@ -522,7 +571,13 @@ def train(hyp, opt, device, callbacks):
                         compute_loss=compute_loss,
                     )  # val best model with plots
                     if is_coco:
-                        callbacks.run("on_fit_epoch_end", list(mloss) + list(results) + lr, epoch, best_fitness, fi)
+                        callbacks.run(
+                            "on_fit_epoch_end",
+                            list(mloss) + list(results) + lr,
+                            epoch,
+                            best_fitness,
+                            fi,
+                        )
 
         callbacks.run("on_train_end", last, best, epoch, results)
 
@@ -555,46 +610,142 @@ def parse_opt(known=False):
     parser.add_argument("--weights", type=str, default=ROOT / "yolov5s.pt", help="initial weights path")
     parser.add_argument("--cfg", type=str, default="", help="model.yaml path")
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="dataset.yaml path")
-    parser.add_argument("--hyp", type=str, default=ROOT / "data/hyps/hyp.scratch-low.yaml", help="hyperparameters path")
+    parser.add_argument(
+        "--hyp",
+        type=str,
+        default=ROOT / "data/hyps/hyp.scratch-low.yaml",
+        help="hyperparameters path",
+    )
     parser.add_argument("--epochs", type=int, default=100, help="total training epochs")
-    parser.add_argument("--batch-size", type=int, default=16, help="total batch size for all GPUs, -1 for autobatch")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=640, help="train, val image size (pixels)")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="total batch size for all GPUs, -1 for autobatch",
+    )
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=640,
+        help="train, val image size (pixels)",
+    )
     parser.add_argument("--rect", action="store_true", help="rectangular training")
-    parser.add_argument("--resume", nargs="?", const=True, default=False, help="resume most recent training")
+    parser.add_argument(
+        "--resume",
+        nargs="?",
+        const=True,
+        default=False,
+        help="resume most recent training",
+    )
     parser.add_argument("--nosave", action="store_true", help="only save final checkpoint")
     parser.add_argument("--noval", action="store_true", help="only validate final epoch")
     parser.add_argument("--noautoanchor", action="store_true", help="disable AutoAnchor")
     parser.add_argument("--noplots", action="store_true", help="save no plot files")
-    parser.add_argument("--evolve", type=int, nargs="?", const=300, help="evolve hyperparameters for x generations")
     parser.add_argument(
-        "--evolve_population", type=str, default=ROOT / "data/hyps", help="location for loading population"
+        "--evolve",
+        type=int,
+        nargs="?",
+        const=300,
+        help="evolve hyperparameters for x generations",
     )
-    parser.add_argument("--resume_evolve", type=str, default=None, help="resume evolve from last generation")
+    parser.add_argument(
+        "--evolve_population",
+        type=str,
+        default=ROOT / "data/hyps",
+        help="location for loading population",
+    )
+    parser.add_argument(
+        "--resume_evolve",
+        type=str,
+        default=None,
+        help="resume evolve from last generation",
+    )
     parser.add_argument("--bucket", type=str, default="", help="gsutil bucket")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help="image --cache ram/disk")
-    parser.add_argument("--image-weights", action="store_true", help="use weighted image selection for training")
+    parser.add_argument(
+        "--image-weights",
+        action="store_true",
+        help="use weighted image selection for training",
+    )
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--multi-scale", action="store_true", help="vary img-size +/- 50%%")
-    parser.add_argument("--single-cls", action="store_true", help="train multi-class data as single-class")
-    parser.add_argument("--optimizer", type=str, choices=["SGD", "Adam", "AdamW"], default="SGD", help="optimizer")
-    parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
-    parser.add_argument("--workers", type=int, default=8, help="max dataloader workers (per RANK in DDP mode)")
+    parser.add_argument(
+        "--single-cls",
+        action="store_true",
+        help="train multi-class data as single-class",
+    )
+    parser.add_argument(
+        "--optimizer",
+        type=str,
+        choices=["SGD", "Adam", "AdamW"],
+        default="SGD",
+        help="optimizer",
+    )
+    parser.add_argument(
+        "--sync-bn",
+        action="store_true",
+        help="use SyncBatchNorm, only available in DDP mode",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="max dataloader workers (per RANK in DDP mode)",
+    )
     parser.add_argument("--project", default=ROOT / "runs/train", help="save to project/name")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
     parser.add_argument("--quad", action="store_true", help="quad dataloader")
     parser.add_argument("--cos-lr", action="store_true", help="cosine LR scheduler")
     parser.add_argument("--label-smoothing", type=float, default=0.0, help="Label smoothing epsilon")
-    parser.add_argument("--patience", type=int, default=100, help="EarlyStopping patience (epochs without improvement)")
-    parser.add_argument("--freeze", nargs="+", type=int, default=[0], help="Freeze layers: backbone=10, first3=0 1 2")
-    parser.add_argument("--save-period", type=int, default=-1, help="Save checkpoint every x epochs (disabled if < 1)")
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=100,
+        help="EarlyStopping patience (epochs without improvement)",
+    )
+    parser.add_argument(
+        "--freeze",
+        nargs="+",
+        type=int,
+        default=[0],
+        help="Freeze layers: backbone=10, first3=0 1 2",
+    )
+    parser.add_argument(
+        "--save-period",
+        type=int,
+        default=-1,
+        help="Save checkpoint every x epochs (disabled if < 1)",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Global training seed")
-    parser.add_argument("--local_rank", type=int, default=-1, help="Automatic DDP Multi-GPU argument, do not modify")
+    parser.add_argument(
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="Automatic DDP Multi-GPU argument, do not modify",
+    )
 
     # Logger arguments
     parser.add_argument("--entity", default=None, help="Entity")
-    parser.add_argument("--upload_dataset", nargs="?", const=True, default=False, help='Upload data, "val" option')
-    parser.add_argument("--bbox_interval", type=int, default=-1, help="Set bounding-box image logging interval")
+    parser.add_argument(
+        "--upload_dataset",
+        nargs="?",
+        const=True,
+        default=False,
+        help='Upload data, "val" option',
+    )
+    parser.add_argument(
+        "--bbox_interval",
+        type=int,
+        default=-1,
+        help="Set bounding-box image logging interval",
+    )
 
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
@@ -647,7 +798,10 @@ def main(opt, callbacks=None):
         if opt.evolve:
             if opt.project == str(ROOT / "runs/train"):  # if default project name, rename to runs/evolve
                 opt.project = str(ROOT / "runs/evolve")
-            opt.exist_ok, opt.resume = opt.resume, False  # pass resume to exist_ok and disable resume
+            opt.exist_ok, opt.resume = (
+                opt.resume,
+                False,
+            )  # pass resume to exist_ok and disable resume
         if opt.name == "cfg":
             opt.name = Path(opt.cfg).stem  # use model.yaml as name
         opt.save_dir = str(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))
@@ -664,7 +818,8 @@ def main(opt, callbacks=None):
         torch.cuda.set_device(LOCAL_RANK)
         device = torch.device("cuda", LOCAL_RANK)
         dist.init_process_group(
-            backend="nccl" if dist.is_nccl_available() else "gloo", timeout=timedelta(seconds=10800)
+            backend="nccl" if dist.is_nccl_available() else "gloo",
+            timeout=timedelta(seconds=10800),
         )
 
     # Train
@@ -690,7 +845,11 @@ def main(opt, callbacks=None):
             "iou_t": (False, 0.1, 0.7),  # IoU training threshold
             "anchor_t": (False, 2.0, 8.0),  # anchor-multiple threshold
             "anchors": (False, 2.0, 10.0),  # anchors per output grid (0 to ignore)
-            "fl_gamma": (False, 0.0, 2.0),  # focal loss gamma (efficientDet default gamma=1.5)
+            "fl_gamma": (
+                False,
+                0.0,
+                2.0,
+            ),  # focal loss gamma (efficientDet default gamma=1.5)
             "hsv_h": (True, 0.0, 0.1),  # image HSV-Hue augmentation (fraction)
             "hsv_s": (True, 0.0, 0.9),  # image HSV-Saturation augmentation (fraction)
             "hsv_v": (True, 0.0, 0.9),  # image HSV-Value augmentation (fraction)
@@ -698,7 +857,11 @@ def main(opt, callbacks=None):
             "translate": (True, 0.0, 0.9),  # image translation (+/- fraction)
             "scale": (True, 0.0, 0.9),  # image scale (+/- gain)
             "shear": (True, 0.0, 10.0),  # image shear (+/- deg)
-            "perspective": (True, 0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
+            "perspective": (
+                True,
+                0.0,
+                0.001,
+            ),  # image perspective (+/- fraction), range 0-0.001
             "flipud": (True, 0.0, 1.0),  # image flip up-down (probability)
             "fliplr": (True, 0.0, 1.0),  # image flip left-right (probability)
             "mosaic": (True, 0.0, 1.0),  # image mosaic (probability)
@@ -723,7 +886,11 @@ def main(opt, callbacks=None):
                 hyp["anchors"] = 3
         if opt.noautoanchor:
             del hyp["anchors"], meta["anchors"]
-        opt.noval, opt.nosave, save_dir = True, True, Path(opt.save_dir)  # only val/save final epoch
+        opt.noval, opt.nosave, save_dir = (
+            True,
+            True,
+            Path(opt.save_dir),
+        )  # only val/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
         evolve_yaml, evolve_csv = save_dir / "hyp_evolve.yaml", save_dir / "evolve.csv"
         if opt.bucket:
@@ -799,7 +966,7 @@ def main(opt, callbacks=None):
             # Evaluate the fitness of each individual in the population
             fitness_scores = []
             for individual in population:
-                for key, value in zip(hyp_GA.keys(), individual):
+                for key, value in zip(hyp_GA.keys(), individual, strict=False):
                     hyp_GA[key] = value
                 hyp.update(hyp_GA)
                 results = train(hyp.copy(), opt, device, callbacks)
@@ -841,7 +1008,11 @@ def main(opt, callbacks=None):
                 parent2_index = selected_indices[random.randint(0, pop_size - 1)]
                 # Adaptive crossover rate
                 crossover_rate = max(
-                    crossover_rate_min, min(crossover_rate_max, crossover_rate_max - (generation / opt.evolve))
+                    crossover_rate_min,
+                    min(
+                        crossover_rate_max,
+                        crossover_rate_max - (generation / opt.evolve),
+                    ),
                 )
                 if random.uniform(0, 1) < crossover_rate:
                     crossover_point = random.randint(1, len(hyp_GA) - 1)
@@ -850,7 +1021,8 @@ def main(opt, callbacks=None):
                     child = population[parent1_index].copy()  # copy, else mutation edits the parent in place
                 # Adaptive mutation rate
                 mutation_rate = max(
-                    mutation_rate_min, min(mutation_rate_max, mutation_rate_max - (generation / opt.evolve))
+                    mutation_rate_min,
+                    min(mutation_rate_max, mutation_rate_max - (generation / opt.evolve)),
                 )
                 for j in range(len(hyp_GA)):
                     if random.uniform(0, 1) < mutation_rate:

@@ -137,7 +137,14 @@ def plot_results_with_masks(file="path/to/results.csv", dir="", best=True):
                 ax[i].plot(x, y, marker=".", label=f.stem, linewidth=2, markersize=2)
                 if best:
                     # best
-                    ax[i].scatter(index, y[index], color="r", label=f"best:{index}", marker="*", linewidth=3)
+                    ax[i].scatter(
+                        index,
+                        y[index],
+                        color="r",
+                        label=f"best:{index}",
+                        marker="*",
+                        linewidth=3,
+                    )
                     ax[i].set_title(s[j] + f"\n{round(y[index], 5)}")
                 else:
                     # last

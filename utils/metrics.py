@@ -8,9 +8,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from ultralytics.utils import LOGGER
-from ultralytics.utils.metrics import box_iou, mask_iou, plot_mc_curve, plot_pr_curve, smooth
+from ultralytics.utils.metrics import (
+    box_iou,
+    mask_iou,
+    plot_mc_curve,
+    plot_pr_curve,
+    smooth,
+)
 
 from utils import TryExcept
+
 
 # NumPy 2.0 compatibility: trapezoid was renamed from trapz
 trapezoid = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
@@ -22,7 +29,17 @@ def fitness(x):
     return (x[:, :4] * w).sum(1)
 
 
-def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir=".", names=(), eps=1e-16, prefix=""):
+def ap_per_class(
+    tp,
+    conf,
+    pred_cls,
+    target_cls,
+    plot=False,
+    save_dir=".",
+    names=(),
+    eps=1e-16,
+    prefix="",
+):
     """Compute the average precision, given the recall and precision curves.
 
     Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
@@ -245,9 +262,17 @@ def process_batch(detections, labels, iouv, pred_masks=None, gt_masks=None, over
             gt_masks = gt_masks.repeat(nl, 1, 1)  # shape(1,640,640) -> (n,640,640)
             gt_masks = torch.where(gt_masks == index, 1.0, 0.0)
         if gt_masks.shape[1:] != pred_masks.shape[1:]:
-            gt_masks = F.interpolate(gt_masks[None], pred_masks.shape[1:], mode="bilinear", align_corners=False)[0]
+            gt_masks = F.interpolate(
+                gt_masks[None],
+                pred_masks.shape[1:],
+                mode="bilinear",
+                align_corners=False,
+            )[0]
             gt_masks = gt_masks.gt_(0.5)
-        iou = mask_iou(gt_masks.view(gt_masks.shape[0], -1), pred_masks.view(pred_masks.shape[0], -1))
+        iou = mask_iou(
+            gt_masks.view(gt_masks.shape[0], -1),
+            pred_masks.view(pred_masks.shape[0], -1),
+        )
     else:  # boxes
         iou = box_iou(labels[:, 1:], detections[:, :4])
 

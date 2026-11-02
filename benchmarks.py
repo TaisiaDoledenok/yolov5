@@ -33,6 +33,7 @@ from pathlib import Path
 
 import pandas as pd
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -96,9 +97,18 @@ def run(
     y, t = [], time.time()
     device = select_device(device)
     model_type = type(attempt_load(weights, fuse=False))  # DetectionModel, SegmentationModel, etc.
-    for i, (name, f, suffix, cpu, gpu) in export.export_formats().iterrows():  # index, (name, file, suffix, CPU, GPU)
+    for i, (
+        name,
+        f,
+        suffix,
+        cpu,
+        gpu,
+    ) in export.export_formats().iterrows():  # index, (name, file, suffix, CPU, GPU)
         try:
-            assert i not in (9, 10), "inference not supported"  # Edge TPU and TF.js are unsupported
+            assert i not in (
+                9,
+                10,
+            ), "inference not supported"  # Edge TPU and TF.js are unsupported
             assert i != 5 or platform.system() == "Darwin", "inference only supported on macOS>=10.13"  # CoreML
             if "cpu" in device.type:
                 assert cpu, "inference not supported on CPU"
@@ -110,16 +120,39 @@ def run(
                 w = weights  # PyTorch format
             else:
                 w = export.run(
-                    weights=weights, imgsz=[imgsz], include=[f], batch_size=batch_size, device=device, half=half
+                    weights=weights,
+                    imgsz=[imgsz],
+                    include=[f],
+                    batch_size=batch_size,
+                    device=device,
+                    half=half,
                 )[-1]  # all others
             assert suffix in str(w), "export failed"
 
             # Validate
             if model_type == SegmentationModel:
-                result = val_seg(data, w, batch_size, imgsz, plots=False, device=device, task="speed", half=half)
+                result = val_seg(
+                    data,
+                    w,
+                    batch_size,
+                    imgsz,
+                    plots=False,
+                    device=device,
+                    task="speed",
+                    half=half,
+                )
                 metric = result[0][7]  # (box(p, r, map50, map), mask(p, r, map50, map), *loss(box, obj, cls))
             else:  # DetectionModel:
-                result = val_det(data, w, batch_size, imgsz, plots=False, device=device, task="speed", half=half)
+                result = val_det(
+                    data,
+                    w,
+                    batch_size,
+                    imgsz,
+                    plots=False,
+                    device=device,
+                    task="speed",
+                    half=half,
+                )
                 metric = result[0][3]  # (p, r, map50, map, *loss(box, obj, cls))
             speed = result[2][1]  # times (preprocess, inference, postprocess)
             y.append([name, round(file_size(w), 1), round(metric, 4), round(speed, 2)])  # MB, mAP, t_inference
@@ -190,12 +223,24 @@ def test(
     """
     y, t = [], time.time()
     device = select_device(device)
-    for i, (name, f, suffix, cpu, gpu) in export.export_formats().iterrows():  # index, (name, file, suffix, CPU, GPU)
+    for i, (
+        name,
+        f,
+        suffix,
+        cpu,
+        gpu,
+    ) in export.export_formats().iterrows():  # index, (name, file, suffix, CPU, GPU)
         try:
             w = (
                 weights
                 if f == "-"
-                else export.run(weights=weights, imgsz=[imgsz], include=[f], device=device, half=half)[-1]
+                else export.run(
+                    weights=weights,
+                    imgsz=[imgsz],
+                    include=[f],
+                    device=device,
+                    half=half,
+                )[-1]
             )  # weights
             assert suffix in str(w), "export failed"
             y.append([name, True])
@@ -234,14 +279,27 @@ def parse_opt():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights", type=str, default=ROOT / "yolov5s.pt", help="weights path")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=640, help="inference size (pixels)")
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=640,
+        help="inference size (pixels)",
+    )
     parser.add_argument("--batch-size", type=int, default=1, help="batch size")
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="dataset.yaml path")
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
     parser.add_argument("--test", action="store_true", help="test exports only")
     parser.add_argument("--pt-only", action="store_true", help="test PyTorch only")
-    parser.add_argument("--hard-fail", nargs="?", const=True, default=False, help="Exception on error or < min metric")
+    parser.add_argument(
+        "--hard-fail",
+        nargs="?",
+        const=True,
+        default=False,
+        help="Exception on error or < min metric",
+    )
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     print_args(vars(opt))

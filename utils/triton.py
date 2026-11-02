@@ -69,7 +69,7 @@ class TritonRemoteModel:
         if args_len:
             if args_len != len(placeholders):
                 raise RuntimeError(f"Expected {len(placeholders)} inputs, got {args_len}.")
-            for input, value in zip(placeholders, args):
+            for input, value in zip(placeholders, args, strict=False):
                 input.set_data_from_numpy(value.cpu().numpy())
         else:
             for input in placeholders:

@@ -49,10 +49,34 @@ from utils.general import (
 )
 from utils.torch_utils import torch_distributed_zero_first
 
+
 # Parameters
 HELP_URL = "See https://docs.ultralytics.com/yolov5/tutorials/train-custom-data"
-IMG_FORMATS = "bmp", "dng", "jpeg", "jpg", "mpo", "png", "tif", "tiff", "webp", "pfm"  # include image suffixes
-VID_FORMATS = "asf", "avi", "gif", "m4v", "mkv", "mov", "mp4", "mpeg", "mpg", "ts", "wmv"  # include video suffixes
+IMG_FORMATS = (
+    "bmp",
+    "dng",
+    "jpeg",
+    "jpg",
+    "mpo",
+    "png",
+    "tif",
+    "tiff",
+    "webp",
+    "pfm",
+)  # include image suffixes
+VID_FORMATS = (
+    "asf",
+    "avi",
+    "gif",
+    "m4v",
+    "mkv",
+    "mov",
+    "mp4",
+    "mpeg",
+    "mpg",
+    "ts",
+    "wmv",
+)  # include video suffixes
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "-1"))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", "-1"))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", "1"))
@@ -218,7 +242,13 @@ class LoadScreenshots:
         import mss
 
         source, *params = source.split()
-        self.screen, left, top, width, height = 0, None, None, None, None  # default to full screen 0
+        self.screen, left, top, width, height = (
+            0,
+            None,
+            None,
+            None,
+            None,
+        )  # default to full screen 0
         if len(params) == 1:
             self.screen = int(params[0])
         elif len(params) == 4:
@@ -239,7 +269,12 @@ class LoadScreenshots:
         self.left = monitor["left"] if left is None else (monitor["left"] + left)
         self.width = width or monitor["width"]
         self.height = height or monitor["height"]
-        self.monitor = {"left": self.left, "top": self.top, "width": self.width, "height": self.height}
+        self.monitor = {
+            "left": self.left,
+            "top": self.top,
+            "width": self.width,
+            "height": self.height,
+        }
 
     def __iter__(self):
         """Iterates over itself, enabling use in loops and iterable contexts."""
@@ -298,9 +333,9 @@ class LoadImages:
             self._new_video(videos[0])  # new video
         else:
             self.cap = None
-        assert self.nf > 0, (
-            f"No images or videos found in {p}. Supported formats are:\nimages: {IMG_FORMATS}\nvideos: {VID_FORMATS}"
-        )
+        assert (
+            self.nf > 0
+        ), f"No images or videos found in {p}. Supported formats are:\nimages: {IMG_FORMATS}\nvideos: {VID_FORMATS}"
 
     def __iter__(self):
         """Initializes iterator by resetting count and returns the iterator object itself."""
@@ -374,7 +409,15 @@ class LoadImages:
 class LoadStreams:
     """Loads and processes video streams for YOLOv5, supporting various sources including YouTube and IP cameras."""
 
-    def __init__(self, sources="file.streams", img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
+    def __init__(
+        self,
+        sources="file.streams",
+        img_size=640,
+        stride=32,
+        auto=True,
+        transforms=None,
+        vid_stride=1,
+    ):
         """Initializes a stream loader for processing video streams with YOLOv5, supporting various sources including
         YouTube.
         """
@@ -386,11 +429,20 @@ class LoadStreams:
         sources = Path(sources).read_text().strip().splitlines() if os.path.isfile(sources) else [sources]
         n = len(sources)
         self.sources = [clean_str(x) for x in sources]  # clean source names for later
-        self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
+        self.imgs, self.fps, self.frames, self.threads = (
+            [None] * n,
+            [0] * n,
+            [0] * n,
+            [None] * n,
+        )
         for i, s in enumerate(sources):  # index, source
             # Start thread to read frames from video stream
             st = f"{i + 1}/{n}: {s}... "
-            if urlparse(s).hostname in ("www.youtube.com", "youtube.com", "youtu.be"):  # if source is YouTube video
+            if urlparse(s).hostname in (
+                "www.youtube.com",
+                "youtube.com",
+                "youtu.be",
+            ):  # if source is YouTube video
                 # YouTube format i.e. 'https://www.youtube.com/watch?v=LNwODJXcvt4' or 'https://youtu.be/LNwODJXcvt4'
                 from ultralytics.data.loaders import get_best_youtube_url
 
@@ -470,7 +522,13 @@ class LoadImagesAndLabels(Dataset):
     """Loads images and their corresponding labels for training and validation in YOLOv5."""
 
     cache_version = 0.6  # dataset labels *.cache version
-    rand_interp_methods = [cv2.INTER_NEAREST, cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, cv2.INTER_LANCZOS4]
+    rand_interp_methods = [
+        cv2.INTER_NEAREST,
+        cv2.INTER_LINEAR,
+        cv2.INTER_CUBIC,
+        cv2.INTER_AREA,
+        cv2.INTER_LANCZOS4,
+    ]
 
     def __init__(
         self,
@@ -527,11 +585,17 @@ class LoadImagesAndLabels(Dataset):
         self.label_files = img2label_paths(self.im_files)  # labels
         cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix(".cache")
         try:
-            cache, exists = np.load(cache_path, allow_pickle=True).item(), True  # load dict
+            cache, exists = (
+                np.load(cache_path, allow_pickle=True).item(),
+                True,
+            )  # load dict
             assert cache["version"] == self.cache_version  # matches current version
             assert cache["hash"] == get_hash(self.label_files + self.im_files)  # identical hash
         except Exception:
-            cache, exists = self.cache_labels(cache_path, prefix), False  # run cache ops
+            cache, exists = (
+                self.cache_labels(cache_path, prefix),
+                False,
+            )  # run cache ops
 
         # Display cache
         nf, nm, ne, nc, n = cache.pop("results")  # found, missing, empty, corrupt, total
@@ -544,7 +608,7 @@ class LoadImagesAndLabels(Dataset):
 
         # Read cache
         [cache.pop(k) for k in ("hash", "version", "msgs")]  # remove items
-        labels, shapes, self.segments = zip(*cache.values())
+        labels, shapes, self.segments = zip(*cache.values(), strict=False)
         nl = len(np.concatenate(labels, 0))  # number of labels
         assert nl > 0 or not augment, f"{prefix}All labels empty in {cache_path}, can not start training. {HELP_URL}"
         self.labels = list(labels)
@@ -577,7 +641,7 @@ class LoadImagesAndLabels(Dataset):
         include_class = []  # filter labels to include only these classes (optional)
         self.segments = list(self.segments)
         include_class_array = np.array(include_class).reshape(1, -1)
-        for i, (label, segment) in enumerate(zip(self.labels, self.segments)):
+        for i, (label, segment) in enumerate(zip(self.labels, self.segments, strict=False)):
             if include_class:
                 j = (label[:, 0:1] == include_class_array).any(1)
                 self.labels[i] = label[j]
@@ -653,11 +717,20 @@ class LoadImagesAndLabels(Dataset):
     def cache_labels(self, path=Path("./labels.cache"), prefix=""):
         """Caches dataset labels, verifies images, reads shapes, and tracks dataset integrity."""
         x = {}  # dict
-        nm, nf, ne, nc, msgs = 0, 0, 0, 0, []  # number missing, found, empty, corrupt, messages
+        nm, nf, ne, nc, msgs = (
+            0,
+            0,
+            0,
+            0,
+            [],
+        )  # number missing, found, empty, corrupt, messages
         desc = f"{prefix}Scanning {path.parent / path.stem}..."
         with Pool(NUM_THREADS) as pool:
             pbar = TQDM(
-                pool.imap(verify_image_label, zip(self.im_files, self.label_files, repeat(prefix))),
+                pool.imap(
+                    verify_image_label,
+                    zip(self.im_files, self.label_files, repeat(prefix)),
+                ),
                 desc=desc,
                 total=len(self.im_files),
             )
@@ -800,7 +873,10 @@ class LoadImagesAndLabels(Dataset):
         labels4, segments4 = [], []
         s = self.img_size
         yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.mosaic_border)  # mosaic center x, y
-        indices = [index, *random.choices(self.indices, k=3)]  # 3 additional image indices
+        indices = [
+            index,
+            *random.choices(self.indices, k=3),
+        ]  # 3 additional image indices
         random.shuffle(indices)
         for i, mosaic_index in enumerate(indices):
             # Load image
@@ -809,8 +885,18 @@ class LoadImagesAndLabels(Dataset):
             # place img in img4
             if i == 0:  # top left
                 img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
-                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
+                x1a, y1a, x2a, y2a = (
+                    max(xc - w, 0),
+                    max(yc - h, 0),
+                    xc,
+                    yc,
+                )  # xmin, ymin, xmax, ymax (large image)
+                x1b, y1b, x2b, y2b = (
+                    w - (x2a - x1a),
+                    h - (y2a - y1a),
+                    w,
+                    h,
+                )  # xmin, ymin, xmax, ymax (small image)
             elif i == 1:  # top right
                 x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
                 x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
@@ -826,7 +912,10 @@ class LoadImagesAndLabels(Dataset):
             padh = y1a - y1b
 
             # Labels
-            labels, segments = self.labels[mosaic_index].copy(), self.segments[mosaic_index].copy()
+            labels, segments = (
+                self.labels[mosaic_index].copy(),
+                self.segments[mosaic_index].copy(),
+            )
             if labels.size:
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w, h, padw, padh)  # normalized xywh to pixel xyxy format
                 segments = [xyn2xy(x, w, h, padw, padh) for x in segments]
@@ -857,7 +946,7 @@ class LoadImagesAndLabels(Dataset):
     @staticmethod
     def collate_fn(batch):
         """Batches images, labels, paths, and shapes, assigning unique indices to targets in merged label tensor."""
-        im, label, path, shapes = zip(*batch)  # transposed
+        im, label, path, shapes = zip(*batch, strict=False)  # transposed
         for i, lb in enumerate(label):
             lb[:, 0] = i  # add target image index for build_targets()
         return torch.stack(im, 0), torch.cat(label, 0), path, shapes
@@ -865,7 +954,7 @@ class LoadImagesAndLabels(Dataset):
     @staticmethod
     def collate_fn4(batch):
         """Bundles a batch's data by quartering the number of shapes and paths, preparing it for model input."""
-        im, label, path, shapes = zip(*batch)  # transposed
+        im, label, path, shapes = zip(*batch, strict=False)  # transposed
         n = len(shapes) // 4
         im4, label4, path4, shapes4 = [], [], path[:n], shapes[:n]
 
@@ -875,13 +964,33 @@ class LoadImagesAndLabels(Dataset):
         for i in range(n):  # zidane torch.zeros(16,3,720,1280)  # BCHW
             i *= 4
             if random.random() < 0.5:
-                im1 = F.interpolate(im[i].unsqueeze(0).float(), scale_factor=2.0, mode="bilinear", align_corners=False)[
-                    0
-                ].type(im[i].type())
+                im1 = F.interpolate(
+                    im[i].unsqueeze(0).float(),
+                    scale_factor=2.0,
+                    mode="bilinear",
+                    align_corners=False,
+                )[0].type(im[i].type())
                 lb = label[i]
             else:
-                im1 = torch.cat((torch.cat((im[i], im[i + 1]), 1), torch.cat((im[i + 2], im[i + 3]), 1)), 2)
-                lb = torch.cat((label[i], label[i + 1] + ho, label[i + 2] + wo, label[i + 3] + ho + wo), 0) * s
+                im1 = torch.cat(
+                    (
+                        torch.cat((im[i], im[i + 1]), 1),
+                        torch.cat((im[i + 2], im[i + 3]), 1),
+                    ),
+                    2,
+                )
+                lb = (
+                    torch.cat(
+                        (
+                            label[i],
+                            label[i + 1] + ho,
+                            label[i + 2] + wo,
+                            label[i + 3] + ho + wo,
+                        ),
+                        0,
+                    )
+                    * s
+                )
             im4.append(im1)
             label4.append(lb)
 
@@ -897,7 +1006,14 @@ class LoadImagesAndLabels(Dataset):
 def verify_image_label(args):
     """Verifies a single image-label pair, ensuring image format, size, and legal label values."""
     im_file, lb_file, prefix = args
-    nm, nf, ne, nc, msg, segments = 0, 0, 0, 0, "", []  # number (missing, found, empty, corrupt), message, segments
+    nm, nf, ne, nc, msg, segments = (
+        0,
+        0,
+        0,
+        0,
+        "",
+        [],
+    )  # number (missing, found, empty, corrupt), message, segments
     try:
         # verify images
         im = Image.open(im_file)
@@ -986,7 +1102,14 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
 
 
 def create_classification_dataloader(
-    path, imgsz=224, batch_size=16, augment=True, cache=False, rank=-1, workers=8, shuffle=True
+    path,
+    imgsz=224,
+    batch_size=16,
+    augment=True,
+    cache=False,
+    rank=-1,
+    workers=8,
+    shuffle=True,
 ):
     """Creates a DataLoader for image classification, supporting caching, augmentation, and distributed training."""
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP

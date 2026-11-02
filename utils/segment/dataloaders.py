@@ -10,10 +10,17 @@ from torch.utils.data import DataLoader
 from ultralytics.data.utils import polygons2masks, polygons2masks_overlap
 
 from ..augmentations import augment_hsv, copy_paste, letterbox
-from ..dataloaders import PIN_MEMORY, InfiniteDataLoader, LoadImagesAndLabels, SmartDistributedSampler, seed_worker
+from ..dataloaders import (
+    PIN_MEMORY,
+    InfiniteDataLoader,
+    LoadImagesAndLabels,
+    SmartDistributedSampler,
+    seed_worker,
+)
 from ..general import LOGGER, xyn2xy, xywhn2xyxy, xyxy2xywhn
 from ..torch_utils import torch_distributed_zero_first
 from .augmentations import mixup, random_perspective
+
 
 RANK = int(os.getenv("RANK", "-1"))
 
@@ -139,7 +146,12 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
 
             # MixUp augmentation
             if random.random() < hyp["mixup"]:
-                img, labels, segments = mixup(img, labels, segments, *self.load_mosaic(random.randint(0, self.n - 1)))
+                img, labels, segments = mixup(
+                    img,
+                    labels,
+                    segments,
+                    *self.load_mosaic(random.randint(0, self.n - 1)),
+                )
 
         else:
             # Load image
@@ -188,13 +200,20 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
                 masks = masks[None]  # (640, 640) -> (1, 640, 640)
                 labels = labels[sorted_idx]
             else:
-                masks = polygons2masks(img.shape[:2], segments, color=1, downsample_ratio=self.downsample_ratio)
+                masks = polygons2masks(
+                    img.shape[:2],
+                    segments,
+                    color=1,
+                    downsample_ratio=self.downsample_ratio,
+                )
 
         masks = (
             torch.from_numpy(masks)
             if len(masks)
             else torch.zeros(
-                1 if self.overlap else nl, img.shape[0] // self.downsample_ratio, img.shape[1] // self.downsample_ratio
+                1 if self.overlap else nl,
+                img.shape[0] // self.downsample_ratio,
+                img.shape[1] // self.downsample_ratio,
             )
         )
         # TODO: albumentations support
@@ -239,7 +258,10 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
         yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.mosaic_border)  # mosaic center x, y
 
         # 3 additional image indices
-        indices = [index, *random.choices(self.indices, k=3)]  # 3 additional image indices
+        indices = [
+            index,
+            *random.choices(self.indices, k=3),
+        ]  # 3 additional image indices
         for i, mosaic_index in enumerate(indices):
             # Load image
             img, _, (h, w) = self.load_image(mosaic_index)
@@ -247,8 +269,18 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
             # place img in img4
             if i == 0:  # top left
                 img4 = np.full((s * 2, s * 2, img.shape[2]), 114, dtype=np.uint8)  # base image with 4 tiles
-                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc  # xmin, ymin, xmax, ymax (large image)
-                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h  # xmin, ymin, xmax, ymax (small image)
+                x1a, y1a, x2a, y2a = (
+                    max(xc - w, 0),
+                    max(yc - h, 0),
+                    xc,
+                    yc,
+                )  # xmin, ymin, xmax, ymax (large image)
+                x1b, y1b, x2b, y2b = (
+                    w - (x2a - x1a),
+                    h - (y2a - y1a),
+                    w,
+                    h,
+                )  # xmin, ymin, xmax, ymax (small image)
             elif i == 1:  # top right
                 x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, s * 2), yc
                 x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
@@ -263,7 +295,10 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
             padw = x1a - x1b
             padh = y1a - y1b
 
-            labels, segments = self.labels[mosaic_index].copy(), self.segments[mosaic_index].copy()
+            labels, segments = (
+                self.labels[mosaic_index].copy(),
+                self.segments[mosaic_index].copy(),
+            )
 
             if labels.size:
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], w, h, padw, padh)  # normalized xywh to pixel xyxy format
@@ -294,7 +329,7 @@ class LoadImagesAndLabelsAndMasks(LoadImagesAndLabels):  # for training/testing
     @staticmethod
     def collate_fn(batch):
         """Custom collation function for DataLoader, batches images, labels, paths, shapes, and segmentation masks."""
-        img, label, path, shapes, masks = zip(*batch)  # transposed
+        img, label, path, shapes, masks = zip(*batch, strict=False)  # transposed
         batched_masks = torch.cat(masks, 0)
         for i, labels in enumerate(label):
             labels[:, 0] = i  # add target image index for build_targets()

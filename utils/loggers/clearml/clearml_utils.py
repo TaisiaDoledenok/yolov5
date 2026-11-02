@@ -11,6 +11,7 @@ import numpy as np
 import yaml
 from ultralytics.utils.plotting import Annotator, colors
 
+
 try:
     import clearml
     from clearml import Dataset, Task
@@ -59,9 +60,11 @@ def construct_dataset(clearml_info_string):
     with open(yaml_filenames[0]) as f:
         dataset_definition = yaml.safe_load(f)
 
-    assert set(dataset_definition.keys()).issuperset({"train", "test", "val", "nc", "names"}), (
-        "The right keys were not found in the yaml file, make sure it at least has the following keys: ('train', 'test', 'val', 'nc', 'names')"
-    )
+    assert set(
+        dataset_definition.keys()
+    ).issuperset(
+        {"train", "test", "val", "nc", "names"}
+    ), "The right keys were not found in the yaml file, make sure it at least has the following keys: ('train', 'test', 'val', 'nc', 'names')"
 
     data_dict = {
         "train": (
@@ -167,7 +170,10 @@ class ClearmlLogger:
             epoch (int): Iteration / epoch of the model weights
         """
         self.task.update_output_model(
-            model_path=str(model_path), name=model_name, iteration=epoch, auto_delete_file=False
+            model_path=str(model_path),
+            name=model_name,
+            iteration=epoch,
+            auto_delete_file=False,
         )
 
     def log_summary(self, metrics):
@@ -205,7 +211,10 @@ class ClearmlLogger:
                 it = re.search(r"_batch(\d+)", f.name)
                 iteration = int(it.groups()[0]) if it else 0
                 self.task.get_logger().report_image(
-                    title=title, series=f.name.replace(f"_batch{iteration}", ""), local_path=str(f), iteration=iteration
+                    title=title,
+                    series=f.name.replace(f"_batch{iteration}", ""),
+                    local_path=str(f),
+                    iteration=iteration,
                 )
 
     def log_image_with_boxes(self, image_path, boxes, class_names, image, conf_threshold=0.25):
@@ -225,7 +234,7 @@ class ClearmlLogger:
         ):
             im = np.ascontiguousarray(np.moveaxis(image.mul(255).clamp(0, 255).byte().cpu().numpy(), 0, 2))
             annotator = Annotator(im=im, pil=True)
-            for i, (conf, class_nr, box) in enumerate(zip(boxes[:, 4], boxes[:, 5], boxes[:, :4])):
+            for i, (conf, class_nr, box) in enumerate(zip(boxes[:, 4], boxes[:, 5], boxes[:, :4], strict=False)):
                 color = colors(i)
 
                 class_name = class_names[int(class_nr)]
@@ -237,6 +246,9 @@ class ClearmlLogger:
 
             annotated_image = annotator.result()
             self.task.get_logger().report_image(
-                title="Bounding Boxes", series=image_path.name, iteration=self.current_epoch, image=annotated_image
+                title="Bounding Boxes",
+                series=image_path.name,
+                iteration=self.current_epoch,
+                image=annotated_image,
             )
             self.current_epoch_logged_images.add(image_path)

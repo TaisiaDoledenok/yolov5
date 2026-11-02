@@ -10,6 +10,7 @@ import yaml
 from utils import TryExcept
 from utils.general import LOGGER, TQDM, colorstr
 
+
 PREFIX = colorstr("AutoAnchor: ")
 
 
@@ -30,7 +31,7 @@ def check_anchors(dataset, model, thr=4.0, imgsz=640):
     shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
     scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
     wh = torch.tensor(
-        np.concatenate([label[:, 3:5] * shape for shape, label in zip(shapes * scale, dataset.labels)])
+        np.concatenate([label[:, 3:5] * shape for shape, label in zip(shapes * scale, dataset.labels, strict=False)])
     ).float()  # wh
 
     def metric(k):  # compute metric
@@ -101,7 +102,10 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
         """Sorts and logs kmeans-evolved anchor metrics and best possible recall values for YOLOv5 anchor evaluation."""
         k = k[np.argsort(k.prod(1))]  # sort small to large
         x, best = metric(k, wh0)
-        bpr, aat = (best > thr).float().mean(), (x > thr).float().mean() * n  # best possible recall, anch > thr
+        bpr, aat = (
+            (best > thr).float().mean(),
+            (x > thr).float().mean() * n,
+        )  # best possible recall, anch > thr
         s = (
             f"{PREFIX}thr={thr:.2f}: {bpr:.4f} best possible recall, {aat:.2f} anchors past thr\n"
             f"{PREFIX}n={n}, img_size={img_size}, metric_all={x.mean():.3f}/{best.mean():.3f}-mean/best, "
@@ -122,7 +126,7 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
 
     # Get label wh
     shapes = img_size * dataset.shapes / dataset.shapes.max(1, keepdims=True)
-    wh0 = np.concatenate([label[:, 3:5] * shape for shape, label in zip(shapes, dataset.labels)])  # wh
+    wh0 = np.concatenate([label[:, 3:5] * shape for shape, label in zip(shapes, dataset.labels, strict=False)])  # wh
 
     # Filter
     i = (wh0 < 3.0).any(1).sum()
@@ -145,7 +149,12 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
     k = print_results(k, verbose=False)
 
     # Evolve
-    f, sh, mp, s = anchor_fitness(k), k.shape, 0.9, 0.1  # fitness, anchor shape, mutation prob, sigma
+    f, sh, mp, s = (
+        anchor_fitness(k),
+        k.shape,
+        0.9,
+        0.1,
+    )  # fitness, anchor shape, mutation prob, sigma
     pbar = TQDM(range(gen))  # progress bar
     for _ in pbar:
         v = np.ones(sh)

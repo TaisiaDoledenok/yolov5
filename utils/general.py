@@ -30,6 +30,7 @@ import torch
 import torchvision
 import yaml
 
+
 # Import 'ultralytics' package or install if missing
 try:
     import ultralytics
@@ -46,9 +47,16 @@ from ultralytics.utils import (  # noqa: F401
     colorstr,
     get_default_args,
 )
-from ultralytics.utils.checks import check_requirements as check_requirements_ultralytics
+from ultralytics.utils.checks import (
+    check_requirements as check_requirements_ultralytics,
+)
 from ultralytics.utils.checks import is_ascii
-from ultralytics.utils.files import WorkingDirectory, file_date, file_size, get_latest_run  # noqa: F401
+from ultralytics.utils.files import (  # noqa: F401
+    WorkingDirectory,
+    file_date,
+    file_size,
+    get_latest_run,
+)
 from ultralytics.utils.git import GitRepo
 from ultralytics.utils.ops import (  # noqa: F401
     Profile,
@@ -65,6 +73,7 @@ from ultralytics.utils.torch_utils import intersect_dicts, one_cycle  # noqa: F4
 from utils import TryExcept, emojis
 from utils.downloads import curl_download, gsutil_getsize
 from utils.metrics import box_iou, fitness
+
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
@@ -150,7 +159,11 @@ def user_config_dir(dir="Ultralytics", env_var="YOLOV5_CONFIG_DIR"):
     if env := os.getenv(env_var):
         path = Path(env)  # use environment variable
     else:
-        cfg = {"Windows": "AppData/Roaming", "Linux": ".config", "Darwin": "Library/Application Support"}  # 3 OS dirs
+        cfg = {
+            "Windows": "AppData/Roaming",
+            "Linux": ".config",
+            "Darwin": "Library/Application Support",
+        }  # 3 OS dirs
         path = Path.home() / cfg.get(platform.system(), "")  # OS-specific config dir
         path = (path if is_writeable(path) else Path("/tmp")) / dir  # GCP and AWS lambda fix, only /tmp is writeable
     path.mkdir(exist_ok=True)  # make if required
@@ -248,10 +261,21 @@ def check_git_info(path=ROOT):
     if repo.root != Path(path):  # GitRepo searches parents, ignore a repo that merely contains YOLOv5
         return {"remote": None, "branch": None, "commit": None}
     remote = repo.origin.replace(".git", "") if repo.origin else None  # i.e. 'https://github.com/ultralytics/yolov5'
-    return {"remote": remote, "branch": repo.branch, "commit": repo.commit}  # branch is None on detached HEAD
+    return {
+        "remote": remote,
+        "branch": repo.branch,
+        "commit": repo.commit,
+    }  # branch is None on detached HEAD
 
 
-def check_version(current="0.0.0", minimum="0.0.0", name="version ", pinned=False, hard=False, verbose=False):
+def check_version(
+    current="0.0.0",
+    minimum="0.0.0",
+    name="version ",
+    pinned=False,
+    hard=False,
+    verbose=False,
+):
     """Checks if the current version meets the minimum required version, exits or warns based on parameters."""
     current, minimum = (packaging.version.parse(x) for x in (current, minimum))
     result = (current == minimum) if pinned else (current >= minimum)  # bool
@@ -324,9 +348,9 @@ def check_file(file, suffix=""):
             assert Path(file).exists() and Path(file).stat().st_size > 0, f"File download failed: {url}"  # check
         return file
     elif file.startswith("clearml://"):  # ClearML Dataset ID
-        assert "clearml" in sys.modules, (
-            "ClearML is not installed, so cannot use ClearML dataset. Try running 'pip install clearml'."
-        )
+        assert (
+            "clearml" in sys.modules
+        ), "ClearML is not installed, so cannot use ClearML dataset. Try running 'pip install clearml'."
         return file
     else:  # search
         files = []
@@ -352,7 +376,14 @@ def check_dataset(data, autodownload=True):
     # Download (optional)
     extract_dir = ""
     if isinstance(data, (str, Path)) and (is_zipfile(data) or is_tarfile(data)):
-        download(data, dir=f"{DATASETS_DIR}/{Path(data).stem}", unzip=True, delete=False, curl=False, threads=1)
+        download(
+            data,
+            dir=f"{DATASETS_DIR}/{Path(data).stem}",
+            unzip=True,
+            delete=False,
+            curl=False,
+            threads=1,
+        )
         data = next((DATASETS_DIR / Path(data).stem).rglob("*.yaml"))
         extract_dir, autodownload = data.parent, False
 
@@ -448,7 +479,11 @@ def yaml_save(file="data.yaml", data=None):
     if data is None:
         data = {}
     with open(file, "w") as f:
-        yaml.safe_dump({k: str(v) if isinstance(v, Path) else v for k, v in data.items()}, f, sort_keys=False)
+        yaml.safe_dump(
+            {k: str(v) if isinstance(v, Path) else v for k, v in data.items()},
+            f,
+            sort_keys=False,
+        )
 
 
 def unzip_file(file, path=None, exclude=(".DS_Store", "__MACOSX")):
@@ -614,7 +649,10 @@ def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     """Rescales (xyxy) bounding boxes from img1_shape to img0_shape, optionally using provided `ratio_pad`."""
     if ratio_pad is None:  # calculate from img0_shape
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+        pad = (
+            (img1_shape[1] - img0_shape[1] * gain) / 2,
+            (img1_shape[0] - img0_shape[0] * gain) / 2,
+        )  # wh padding
     else:
         gain = ratio_pad[0][0]
         pad = ratio_pad[1]
@@ -630,7 +668,10 @@ def scale_segments(img1_shape, segments, img0_shape, ratio_pad=None, normalize=F
     """Rescales segment coordinates from img1_shape to img0_shape, optionally normalizing them with custom padding."""
     if ratio_pad is None:  # calculate from img0_shape
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+        pad = (
+            (img1_shape[1] - img0_shape[1] * gain) / 2,
+            (img1_shape[0] - img0_shape[0] * gain) / 2,
+        )  # wh padding
     else:
         gain = ratio_pad[0][0]
         pad = ratio_pad[1]
@@ -858,7 +899,10 @@ def print_mutation(keys, results, hyp, save_dir, bucket, prefix=colorstr("evolve
     )
 
     if bucket:
-        subprocess.run(["gsutil", "cp", f"{evolve_csv}", f"{evolve_yaml}", f"gs://{bucket}"], check=False)  # upload
+        subprocess.run(
+            ["gsutil", "cp", f"{evolve_csv}", f"{evolve_yaml}", f"gs://{bucket}"],
+            check=False,
+        )  # upload
 
 
 def increment_path(path, exist_ok=False, sep="", mkdir=False):

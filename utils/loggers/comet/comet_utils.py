@@ -4,12 +4,14 @@ import logging
 import os
 from urllib.parse import urlparse
 
+
 try:
     import comet_ml
 except ImportError:
     comet_ml = None
 
 import yaml
+
 
 logger = logging.getLogger(__name__)
 

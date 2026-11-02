@@ -11,6 +11,7 @@ from pathlib import Path
 
 from utils.general import LOGGER, colorstr
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[3]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:

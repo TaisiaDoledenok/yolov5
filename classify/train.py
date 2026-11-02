@@ -28,6 +28,7 @@ import torchvision
 from torch import hub
 from torch.optim import lr_scheduler
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -68,6 +69,7 @@ from utils.torch_utils import (
     smartCrossEntropyLoss,
     torch_distributed_zero_first,
 )
+
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "-1"))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", "-1"))
@@ -244,7 +246,10 @@ def train(opt, device):
                 # Test
                 if i == len(trainloader) - 1:  # last batch
                     top1, top5, vloss = validate.run(
-                        model=ema.ema, dataloader=testloader, criterion=criterion, pbar=pbar
+                        model=ema.ema,
+                        dataloader=testloader,
+                        criterion=criterion,
+                        pbar=pbar,
                     )  # test accuracy, loss
                     fitness = top1  # define fitness as top1 accuracy
 
@@ -302,10 +307,21 @@ def train(opt, device):
         # Plot examples
         images, labels = (x[:25] for x in next(iter(testloader)))  # first 25 images and labels
         pred = torch.max(ema.ema(images.to(device)), 1)[1]
-        file = imshow_cls(images, labels, pred, de_parallel(model).names, verbose=False, f=save_dir / "test_images.jpg")
+        file = imshow_cls(
+            images,
+            labels,
+            pred,
+            de_parallel(model).names,
+            verbose=False,
+            f=save_dir / "test_images.jpg",
+        )
 
         # Log results
-        meta = {"epochs": epochs, "top1_acc": best_fitness, "date": datetime.now().isoformat()}  # noqa: DTZ005
+        meta = {
+            "epochs": epochs,
+            "top1_acc": best_fitness,
+            "date": datetime.now().isoformat(),
+        }  # noqa: DTZ005
         logger.log_images(file, name="Test Examples (true-predicted)", epoch=epoch)
         logger.log_model(best, epochs, metadata=meta)
 
@@ -316,27 +332,75 @@ def parse_opt(known=False):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, default="yolov5s-cls.pt", help="initial weights path")
-    parser.add_argument("--data", type=str, default="imagenette160", help="cifar10, cifar100, mnist, imagenet, ...")
+    parser.add_argument(
+        "--data",
+        type=str,
+        default="imagenette160",
+        help="cifar10, cifar100, mnist, imagenet, ...",
+    )
     parser.add_argument("--epochs", type=int, default=10, help="total training epochs")
     parser.add_argument("--batch-size", type=int, default=64, help="total batch size for all GPUs")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=224, help="train, val image size (pixels)")
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=224,
+        help="train, val image size (pixels)",
+    )
     parser.add_argument("--nosave", action="store_true", help="only save final checkpoint")
-    parser.add_argument("--cache", type=str, nargs="?", const="ram", help='--cache images in "ram" (default) or "disk"')
+    parser.add_argument(
+        "--cache",
+        type=str,
+        nargs="?",
+        const="ram",
+        help='--cache images in "ram" (default) or "disk"',
+    )
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument("--workers", type=int, default=8, help="max dataloader workers (per RANK in DDP mode)")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="max dataloader workers (per RANK in DDP mode)",
+    )
     parser.add_argument("--project", default=ROOT / "runs/train-cls", help="save to project/name")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
-    parser.add_argument("--pretrained", nargs="?", const=True, default=True, help="start from i.e. --pretrained False")
-    parser.add_argument("--optimizer", choices=["SGD", "Adam", "AdamW", "RMSProp"], default="Adam", help="optimizer")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
+    parser.add_argument(
+        "--pretrained",
+        nargs="?",
+        const=True,
+        default=True,
+        help="start from i.e. --pretrained False",
+    )
+    parser.add_argument(
+        "--optimizer",
+        choices=["SGD", "Adam", "AdamW", "RMSProp"],
+        default="Adam",
+        help="optimizer",
+    )
     parser.add_argument("--lr0", type=float, default=0.001, help="initial learning rate")
     parser.add_argument("--decay", type=float, default=5e-5, help="weight decay")
     parser.add_argument("--label-smoothing", type=float, default=0.1, help="Label smoothing epsilon")
-    parser.add_argument("--cutoff", type=int, default=None, help="Model layer cutoff index for Classify() head")
+    parser.add_argument(
+        "--cutoff",
+        type=int,
+        default=None,
+        help="Model layer cutoff index for Classify() head",
+    )
     parser.add_argument("--dropout", type=float, default=None, help="Dropout (fraction)")
     parser.add_argument("--verbose", action="store_true", help="Verbose mode")
     parser.add_argument("--seed", type=int, default=0, help="Global training seed")
-    parser.add_argument("--local_rank", type=int, default=-1, help="Automatic DDP Multi-GPU argument, do not modify")
+    parser.add_argument(
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="Automatic DDP Multi-GPU argument, do not modify",
+    )
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
 
@@ -356,7 +420,8 @@ def main(opt):
         torch.cuda.set_device(LOCAL_RANK)
         device = torch.device("cuda", LOCAL_RANK)
         dist.init_process_group(
-            backend="nccl" if dist.is_nccl_available() else "gloo", timeout=timedelta(seconds=10800)
+            backend="nccl" if dist.is_nccl_available() else "gloo",
+            timeout=timedelta(seconds=10800),
         )
 
     # Parameters

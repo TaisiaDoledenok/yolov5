@@ -14,7 +14,14 @@ from utils.loggers.wandb.wandb_utils import WandbLogger
 from utils.plots import plot_images, plot_labels, plot_results
 from utils.torch_utils import de_parallel
 
-LOGGERS = ("csv", "tb", "wandb", "clearml", "comet")  # *.csv, TensorBoard, Weights & Biases, ClearML
+
+LOGGERS = (
+    "csv",
+    "tb",
+    "wandb",
+    "clearml",
+    "comet",
+)  # *.csv, TensorBoard, Weights & Biases, ClearML
 RANK = int(os.getenv("RANK", "-1"))
 
 try:
@@ -63,7 +70,15 @@ except (ImportError, AssertionError):
 class Loggers:
     """Initializes and manages various logging utilities for tracking YOLOv5 training and validation metrics."""
 
-    def __init__(self, save_dir=None, weights=None, opt=None, hyp=None, logger=None, include=LOGGERS):
+    def __init__(
+        self,
+        save_dir=None,
+        weights=None,
+        opt=None,
+        hyp=None,
+        logger=None,
+        include=LOGGERS,
+    ):
         """Initializes loggers for YOLOv5 training and validation metrics, paths, and options."""
         self.save_dir = save_dir
         self.weights = weights
@@ -87,7 +102,13 @@ class Loggers:
             "x/lr1",
             "x/lr2",
         ]  # params
-        self.best_keys = ["best/epoch", "best/precision", "best/recall", "best/mAP_0.5", "best/mAP_0.5:0.95"]
+        self.best_keys = [
+            "best/epoch",
+            "best/precision",
+            "best/recall",
+            "best/mAP_0.5",
+            "best/mAP_0.5:0.95",
+        ]
         for k in LOGGERS:
             setattr(self, k, None)  # init empty logger dictionary
         self.csv = True  # always log to csv
@@ -171,7 +192,7 @@ class Loggers:
 
     def on_train_batch_end(self, model, ni, imgs, targets, paths, vals):
         """Logs training batch end events, plots images, and updates external loggers with batch-end data."""
-        log_dict = dict(zip(self.keys[:3], vals))
+        log_dict = dict(zip(self.keys[:3], vals, strict=False))
         # Callback runs on train batch end
         # ni: number integrated batches (since train start)
         if self.plots:
@@ -227,7 +248,7 @@ class Loggers:
 
     def on_fit_epoch_end(self, vals, epoch, best_fitness, fi):
         """Callback that logs metrics and saves them to CSV at the end of each fit (train+val) epoch."""
-        x = dict(zip(self.keys, vals))
+        x = dict(zip(self.keys, vals, strict=False))
         if self.csv:
             file = self.save_dir / "results.csv"
             n = len(x) + 1  # number of cols
@@ -263,7 +284,9 @@ class Loggers:
                 self.wandb.log_model(last.parent, self.opt, epoch, fi, best_model=best_fitness == fi)
             if self.clearml:
                 self.clearml.task.update_output_model(
-                    model_path=str(last), model_name="Latest Model", auto_delete_file=False
+                    model_path=str(last),
+                    model_name="Latest Model",
+                    auto_delete_file=False,
                 )
 
         if self.comet_logger:
@@ -273,7 +296,11 @@ class Loggers:
         """Callback that runs at the end of training to save plots and log results."""
         if self.plots:
             plot_results(file=self.save_dir / "results.csv")  # save results.png
-        files = ["results.png", "confusion_matrix.png", *(f"{x}_curve.png" for x in ("F1", "PR", "P", "R"))]
+        files = [
+            "results.png",
+            "confusion_matrix.png",
+            *(f"{x}_curve.png" for x in ("F1", "PR", "P", "R")),
+        ]
         files = [(self.save_dir / f) for f in files if (self.save_dir / f).exists()]  # filter
         self.logger.info(f"Results saved to {colorstr('bold', self.save_dir)}")
 
@@ -282,7 +309,7 @@ class Loggers:
                 self.tb.add_image(f.stem, cv2.imread(str(f))[..., ::-1], epoch, dataformats="HWC")
 
         if self.wandb:
-            self.wandb.log(dict(zip(self.keys[3:10], results)))
+            self.wandb.log(dict(zip(self.keys[3:10], results, strict=False)))
             self.wandb.log({"Results": [wandb.Image(str(f), caption=f.name) for f in files]})
             # Calling wandb.log. TODO: Refactor this into WandbLogger.log_model
             if not self.opt.evolve:
@@ -295,14 +322,16 @@ class Loggers:
             self.wandb.finish_run()
 
         if self.clearml and not self.opt.evolve:
-            self.clearml.log_summary(dict(zip(self.keys[3:10], results)))
+            self.clearml.log_summary(dict(zip(self.keys[3:10], results, strict=False)))
             [self.clearml.log_plot(title=f.stem, plot_path=f) for f in files]
             self.clearml.log_model(
-                str(best if best.exists() else last), "Best Model" if best.exists() else "Last Model", epoch
+                str(best if best.exists() else last),
+                "Best Model" if best.exists() else "Last Model",
+                epoch,
             )
 
         if self.comet_logger:
-            final_results = dict(zip(self.keys[3:10], results))
+            final_results = dict(zip(self.keys[3:10], results, strict=False))
             self.comet_logger.on_train_end(files, self.save_dir, last, best, epoch, final_results)
 
     def on_params_update(self, params: dict):
@@ -343,7 +372,9 @@ class GenericLogger:
 
         if wandb and "wandb" in self.include:
             self.wandb = wandb.init(
-                project=web_project_name(str(opt.project)), name=None if opt.name == "exp" else opt.name, config=opt
+                project=web_project_name(str(opt.project)),
+                name=None if opt.name == "exp" else opt.name,
+                config=opt,
             )
         else:
             self.wandb = None

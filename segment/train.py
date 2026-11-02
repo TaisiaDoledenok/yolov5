@@ -33,6 +33,7 @@ import yaml
 from torch import nn
 from torch.optim import lr_scheduler
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -90,6 +91,7 @@ from utils.torch_utils import (
     smart_resume,
     torch_distributed_zero_first,
 )
+
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "-1"))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", "-1"))
@@ -318,7 +320,20 @@ def train(hyp, opt, device):
     # nw = min(nw, (epochs - start_epoch) / 2 * nb)  # limit warmup to < 1/2 of training
     last_opt_step = -1
     maps = np.zeros(nc)  # mAP per class
-    results = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
+    results = (
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+    )  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
     scaler = GradScaler(enabled=amp)
     stopper, stop = EarlyStopping(patience=opt.patience), False
@@ -348,12 +363,27 @@ def train(hyp, opt, device):
         pbar = enumerate(train_loader)
         LOGGER.info(
             ("\n" + "%11s" * 8)
-            % ("Epoch", "GPU_mem", "box_loss", "seg_loss", "obj_loss", "cls_loss", "Instances", "Size")
+            % (
+                "Epoch",
+                "GPU_mem",
+                "box_loss",
+                "seg_loss",
+                "obj_loss",
+                "cls_loss",
+                "Instances",
+                "Size",
+            )
         )
         if RANK in {-1, 0}:
             pbar = TQDM(pbar, total=nb)  # progress bar
         optimizer.zero_grad()
-        for i, (imgs, targets, paths, _, masks) in pbar:  # batch ------------------------------------------------------
+        for i, (
+            imgs,
+            targets,
+            paths,
+            _,
+            masks,
+        ) in pbar:  # batch ------------------------------------------------------
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -364,7 +394,14 @@ def train(hyp, opt, device):
                 accumulate = max(1, np.interp(ni, xi, [1, nbs / batch_size]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                    x["lr"] = np.interp(ni, xi, [hyp["warmup_bias_lr"] if j == 0 else 0.0, x["initial_lr"] * lf(epoch)])
+                    x["lr"] = np.interp(
+                        ni,
+                        xi,
+                        [
+                            hyp["warmup_bias_lr"] if j == 0 else 0.0,
+                            x["initial_lr"] * lf(epoch),
+                        ],
+                    )
                     if "momentum" in x:
                         x["momentum"] = np.interp(ni, xi, [hyp["warmup_momentum"], hyp["momentum"]])
 
@@ -405,13 +442,25 @@ def train(hyp, opt, device):
                 mem = f"{torch.cuda.memory_reserved() / 1e9 if torch.cuda.is_available() else 0:.3g}G"  # (GB)
                 pbar.set_description(
                     ("%11s" * 2 + "%11.4g" * 6)
-                    % (f"{epoch}/{epochs - 1}", mem, *mloss, targets.shape[0], imgs.shape[-1])
+                    % (
+                        f"{epoch}/{epochs - 1}",
+                        mem,
+                        *mloss,
+                        targets.shape[0],
+                        imgs.shape[-1],
+                    )
                 )
 
                 # Mosaic plots
                 if plots:
                     if ni < 3:
-                        plot_images_and_masks(imgs, targets, masks, paths, save_dir / f"train_batch{ni}.jpg")
+                        plot_images_and_masks(
+                            imgs,
+                            targets,
+                            masks,
+                            paths,
+                            save_dir / f"train_batch{ni}.jpg",
+                        )
                     if ni == 10:
                         files = sorted(save_dir.glob("train*.jpg"))
                         logger.log_images(files, "Mosaics", epoch)
@@ -447,7 +496,7 @@ def train(hyp, opt, device):
             best_fitness = max(best_fitness, fi)
             log_vals = list(mloss) + list(results) + lr
             # Log val metrics and media
-            metrics_dict = dict(zip(KEYS, log_vals))
+            metrics_dict = dict(zip(KEYS, log_vals, strict=False))
             logger.log_metrics(metrics_dict, epoch)
 
             # Save model
@@ -508,16 +557,20 @@ def train(hyp, opt, device):
                         overlap=overlap,
                     )  # val best model with plots
                     if is_coco:
-                        metrics_dict = dict(zip(KEYS, list(mloss) + list(results) + lr))
+                        metrics_dict = dict(zip(KEYS, list(mloss) + list(results) + lr, strict=False))
                         logger.log_metrics(metrics_dict, epoch)
 
         # on train end callback using genericLogger
-        logger.log_metrics(dict(zip(KEYS[4:16], results)), epochs)
+        logger.log_metrics(dict(zip(KEYS[4:16], results, strict=False)), epochs)
         if not opt.evolve:
             logger.log_model(best, epoch)
         if plots:
             plot_results_with_masks(file=save_dir / "results.csv")  # save results.png
-            files = ["results.png", "confusion_matrix.png", *(f"{x}_curve.png" for x in ("F1", "PR", "P", "R"))]
+            files = [
+                "results.png",
+                "confusion_matrix.png",
+                *(f"{x}_curve.png" for x in ("F1", "PR", "P", "R")),
+            ]
             files = [(save_dir / f) for f in files if (save_dir / f).exists()]  # filter
             LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}")
             logger.log_images(files, "Results", epoch + 1)
@@ -532,44 +585,140 @@ def parse_opt(known=False):
     Supports both known and unknown args.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", type=str, default=ROOT / "yolov5s-seg.pt", help="initial weights path")
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default=ROOT / "yolov5s-seg.pt",
+        help="initial weights path",
+    )
     parser.add_argument("--cfg", type=str, default="", help="model.yaml path")
-    parser.add_argument("--data", type=str, default=ROOT / "data/coco128-seg.yaml", help="dataset.yaml path")
-    parser.add_argument("--hyp", type=str, default=ROOT / "data/hyps/hyp.scratch-low.yaml", help="hyperparameters path")
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=ROOT / "data/coco128-seg.yaml",
+        help="dataset.yaml path",
+    )
+    parser.add_argument(
+        "--hyp",
+        type=str,
+        default=ROOT / "data/hyps/hyp.scratch-low.yaml",
+        help="hyperparameters path",
+    )
     parser.add_argument("--epochs", type=int, default=100, help="total training epochs")
-    parser.add_argument("--batch-size", type=int, default=16, help="total batch size for all GPUs, -1 for autobatch")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=640, help="train, val image size (pixels)")
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="total batch size for all GPUs, -1 for autobatch",
+    )
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=640,
+        help="train, val image size (pixels)",
+    )
     parser.add_argument("--rect", action="store_true", help="rectangular training")
-    parser.add_argument("--resume", nargs="?", const=True, default=False, help="resume most recent training")
+    parser.add_argument(
+        "--resume",
+        nargs="?",
+        const=True,
+        default=False,
+        help="resume most recent training",
+    )
     parser.add_argument("--nosave", action="store_true", help="only save final checkpoint")
     parser.add_argument("--noval", action="store_true", help="only validate final epoch")
     parser.add_argument("--noautoanchor", action="store_true", help="disable AutoAnchor")
     parser.add_argument("--noplots", action="store_true", help="save no plot files")
-    parser.add_argument("--evolve", type=int, nargs="?", const=300, help="evolve hyperparameters for x generations")
+    parser.add_argument(
+        "--evolve",
+        type=int,
+        nargs="?",
+        const=300,
+        help="evolve hyperparameters for x generations",
+    )
     parser.add_argument("--bucket", type=str, default="", help="gsutil bucket")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help="image --cache ram/disk")
-    parser.add_argument("--image-weights", action="store_true", help="use weighted image selection for training")
+    parser.add_argument(
+        "--image-weights",
+        action="store_true",
+        help="use weighted image selection for training",
+    )
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--multi-scale", action="store_true", help="vary img-size +/- 50%%")
-    parser.add_argument("--single-cls", action="store_true", help="train multi-class data as single-class")
-    parser.add_argument("--optimizer", type=str, choices=["SGD", "Adam", "AdamW"], default="SGD", help="optimizer")
-    parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
-    parser.add_argument("--workers", type=int, default=8, help="max dataloader workers (per RANK in DDP mode)")
+    parser.add_argument(
+        "--single-cls",
+        action="store_true",
+        help="train multi-class data as single-class",
+    )
+    parser.add_argument(
+        "--optimizer",
+        type=str,
+        choices=["SGD", "Adam", "AdamW"],
+        default="SGD",
+        help="optimizer",
+    )
+    parser.add_argument(
+        "--sync-bn",
+        action="store_true",
+        help="use SyncBatchNorm, only available in DDP mode",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="max dataloader workers (per RANK in DDP mode)",
+    )
     parser.add_argument("--project", default=ROOT / "runs/train-seg", help="save to project/name")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
     parser.add_argument("--quad", action="store_true", help="quad dataloader")
     parser.add_argument("--cos-lr", action="store_true", help="cosine LR scheduler")
     parser.add_argument("--label-smoothing", type=float, default=0.0, help="Label smoothing epsilon")
-    parser.add_argument("--patience", type=int, default=100, help="EarlyStopping patience (epochs without improvement)")
-    parser.add_argument("--freeze", nargs="+", type=int, default=[0], help="Freeze layers: backbone=10, first3=0 1 2")
-    parser.add_argument("--save-period", type=int, default=-1, help="Save checkpoint every x epochs (disabled if < 1)")
+    parser.add_argument(
+        "--patience",
+        type=int,
+        default=100,
+        help="EarlyStopping patience (epochs without improvement)",
+    )
+    parser.add_argument(
+        "--freeze",
+        nargs="+",
+        type=int,
+        default=[0],
+        help="Freeze layers: backbone=10, first3=0 1 2",
+    )
+    parser.add_argument(
+        "--save-period",
+        type=int,
+        default=-1,
+        help="Save checkpoint every x epochs (disabled if < 1)",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Global training seed")
-    parser.add_argument("--local_rank", type=int, default=-1, help="Automatic DDP Multi-GPU argument, do not modify")
+    parser.add_argument(
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="Automatic DDP Multi-GPU argument, do not modify",
+    )
 
     # Instance Segmentation Args
-    parser.add_argument("--mask-ratio", type=int, default=4, help="Downsample the truth masks to save memory")
-    parser.add_argument("--no-overlap", action="store_true", help="Overlap masks train faster at slightly less mAP")
+    parser.add_argument(
+        "--mask-ratio",
+        type=int,
+        default=4,
+        help="Downsample the truth masks to save memory",
+    )
+    parser.add_argument(
+        "--no-overlap",
+        action="store_true",
+        help="Overlap masks train faster at slightly less mAP",
+    )
 
     return parser.parse_known_args()[0] if known else parser.parse_args()
 
@@ -607,7 +756,10 @@ def main(opt):
         if opt.evolve:
             if opt.project == str(ROOT / "runs/train-seg"):  # if default project name, rename to runs/evolve-seg
                 opt.project = str(ROOT / "runs/evolve-seg")
-            opt.exist_ok, opt.resume = opt.resume, False  # pass resume to exist_ok and disable resume
+            opt.exist_ok, opt.resume = (
+                opt.resume,
+                False,
+            )  # pass resume to exist_ok and disable resume
         if opt.name == "cfg":
             opt.name = Path(opt.cfg).stem  # use model.yaml as name
         opt.save_dir = str(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))
@@ -624,7 +776,8 @@ def main(opt):
         torch.cuda.set_device(LOCAL_RANK)
         device = torch.device("cuda", LOCAL_RANK)
         dist.init_process_group(
-            backend="nccl" if dist.is_nccl_available() else "gloo", timeout=timedelta(seconds=10800)
+            backend="nccl" if dist.is_nccl_available() else "gloo",
+            timeout=timedelta(seconds=10800),
         )
 
     # Train
@@ -650,7 +803,11 @@ def main(opt):
             "iou_t": (0, 0.1, 0.7),  # IoU training threshold
             "anchor_t": (1, 2.0, 8.0),  # anchor-multiple threshold
             "anchors": (2, 2.0, 10.0),  # anchors per output grid (0 to ignore)
-            "fl_gamma": (0, 0.0, 2.0),  # focal loss gamma (efficientDet default gamma=1.5)
+            "fl_gamma": (
+                0,
+                0.0,
+                2.0,
+            ),  # focal loss gamma (efficientDet default gamma=1.5)
             "hsv_h": (1, 0.0, 0.1),  # image HSV-Hue augmentation (fraction)
             "hsv_s": (1, 0.0, 0.9),  # image HSV-Saturation augmentation (fraction)
             "hsv_v": (1, 0.0, 0.9),  # image HSV-Value augmentation (fraction)
@@ -658,7 +815,11 @@ def main(opt):
             "translate": (1, 0.0, 0.9),  # image translation (+/- fraction)
             "scale": (1, 0.0, 0.9),  # image scale (+/- gain)
             "shear": (1, 0.0, 10.0),  # image shear (+/- deg)
-            "perspective": (0, 0.0, 0.001),  # image perspective (+/- fraction), range 0-0.001
+            "perspective": (
+                0,
+                0.0,
+                0.001,
+            ),  # image perspective (+/- fraction), range 0-0.001
             "flipud": (1, 0.0, 1.0),  # image flip up-down (probability)
             "fliplr": (0, 0.0, 1.0),  # image flip left-right (probability)
             "mosaic": (1, 0.0, 1.0),  # image mixup (probability)
@@ -672,7 +833,11 @@ def main(opt):
                 hyp["anchors"] = 3
         if opt.noautoanchor:
             del hyp["anchors"], meta["anchors"]
-        opt.noval, opt.nosave, save_dir = True, True, Path(opt.save_dir)  # only val/save final epoch
+        opt.noval, opt.nosave, save_dir = (
+            True,
+            True,
+            Path(opt.save_dir),
+        )  # only val/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
         evolve_yaml, evolve_csv = save_dir / "hyp_evolve.yaml", save_dir / "evolve.csv"
         if opt.bucket:

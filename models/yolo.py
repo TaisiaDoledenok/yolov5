@@ -18,6 +18,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -51,7 +52,14 @@ from models.common import (
 )
 from models.experimental import MixConv2d
 from utils.autoanchor import check_anchor_order
-from utils.general import LOGGER, check_version, check_yaml, colorstr, make_divisible, print_args
+from utils.general import (
+    LOGGER,
+    check_version,
+    check_yaml,
+    colorstr,
+    make_divisible,
+    print_args,
+)
 from utils.torch_utils import (
     fuse_conv_and_bn,
     initialize_weights,
@@ -61,6 +69,7 @@ from utils.torch_utils import (
     select_device,
     time_sync,
 )
+
 
 try:
     import thop  # for FLOPs computation
@@ -272,7 +281,7 @@ class DetectionModel(BaseModel):
         s = [1, 0.83, 0.67]  # scales
         f = [None, 3, None]  # flips (2-ud, 3-lr)
         y = []  # outputs
-        for si, fi in zip(s, f):
+        for si, fi in zip(s, f, strict=False):
             xi = scale_img(x.flip(fi) if fi else x, si, gs=int(self.stride.max()))
             yi = self._forward_once(xi)[0]  # forward
             # cv2.imwrite(f'img_{si}.jpg', 255 * xi[0].cpu().numpy().transpose((1, 2, 0))[:, :, ::-1])  # save
@@ -290,7 +299,11 @@ class DetectionModel(BaseModel):
             elif flips == 3:
                 p[..., 0] = img_size[1] - p[..., 0]  # de-flip lr
         else:
-            x, y, wh = p[..., 0:1] / scale, p[..., 1:2] / scale, p[..., 2:4] / scale  # de-scale
+            x, y, wh = (
+                p[..., 0:1] / scale,
+                p[..., 1:2] / scale,
+                p[..., 2:4] / scale,
+            )  # de-scale
             if flips == 2:
                 y = img_size[0] - y  # de-flip ud
             elif flips == 3:
@@ -318,7 +331,7 @@ class DetectionModel(BaseModel):
         """
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
         m = self.model[-1]  # Detect() module
-        for mi, s in zip(m.m, m.stride):  # from
+        for mi, s in zip(m.m, m.stride, strict=False):  # from
             b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
             b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5 : 5 + m.nc] += (
@@ -448,7 +461,12 @@ def parse_model(d, ch):
         m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         np = sum(x.numel() for x in m_.parameters())  # number params
-        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
+        m_.i, m_.f, m_.type, m_.np = (
+            i,
+            f,
+            t,
+            np,
+        )  # attach index, 'from' index, type, number params
         LOGGER.info(f"{i:>3}{f!s:>18}{n_:>3}{np:10.0f}  {t:<40}{args!s:<30}")  # print
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)

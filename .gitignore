@@ -55,6 +55,7 @@ data/
 requirements-original.txt
 tests/
 pyproject-original
+.pre-commit-config.yaml
 
 
 # ===== Логи =====

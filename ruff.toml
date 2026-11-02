@@ -1,0 +1,19 @@
+line-length = 120
+target-version = "py310"
+
+[lint]
+ignore = [
+    "E402",   # import not at top of file — YOLOv5 специально так делает
+    "B007",   # unused loop variable — незначительно
+    "UP038",  # isinstance(x, (A, B)) → (A | B) — нужно только для py3.10+, YOLOv5 поддерживает 3.8
+    "E731",   # lambda assignment — встречается в YOLOv5
+    "E741",   # ambiguous variable names (l, I, O)
+]
+
+exclude = [
+    ".venv",
+    "runs",
+    "datasets",
+    "weights",
+    "**/__pycache__",
+]

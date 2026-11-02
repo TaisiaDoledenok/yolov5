@@ -33,7 +33,10 @@ class MixConv2d(nn.Module):
             c_ = np.linalg.lstsq(a, b, rcond=None)[0].round()  # solve for equal weight indices, ax = b
 
         self.m = nn.ModuleList(
-            [nn.Conv2d(c1, int(c_), k, s, k // 2, groups=math.gcd(c1, int(c_)), bias=False) for k, c_ in zip(k, c_)]
+            [
+                nn.Conv2d(c1, int(c_), k, s, k // 2, groups=math.gcd(c1, int(c_)), bias=False)
+                for k, c_ in zip(k, c_, strict=False)
+            ]
         )
         self.bn = nn.BatchNorm2d(c2)
         self.act = nn.SiLU()

@@ -27,6 +27,7 @@ from pathlib import Path
 
 import torch
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -71,7 +72,12 @@ def run(
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
-        device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
+        device, pt, jit, engine = (
+            next(model.parameters()).device,
+            True,
+            False,
+            False,
+        )  # get model device, PyTorch model
         half &= device.type != "cpu"  # half precision only supported on CUDA
         model.half() if half else model.float()
     else:  # called directly
@@ -98,11 +104,21 @@ def run(
         data = Path(data)
         test_dir = data / "test" if (data / "test").exists() else data / "val"  # data/test or data/val
         dataloader = create_classification_dataloader(
-            path=test_dir, imgsz=imgsz, batch_size=batch_size, augment=False, rank=-1, workers=workers
+            path=test_dir,
+            imgsz=imgsz,
+            batch_size=batch_size,
+            augment=False,
+            rank=-1,
+            workers=workers,
         )
 
     model.eval()
-    pred, targets, loss, dt = [], [], 0, (Profile(device=device), Profile(device=device), Profile(device=device))
+    pred, targets, loss, dt = (
+        [],
+        [],
+        0,
+        (Profile(device=device), Profile(device=device), Profile(device=device)),
+    )
     n = len(dataloader)  # number of batches
     action = "validating" if dataloader.dataset.root.stem == "val" else "testing"
     desc = f"{pbar.desc[:-36]}{action:>36}" if pbar else f"{action}"
@@ -151,15 +167,37 @@ def parse_opt():
     """Parses and returns command line arguments for YOLOv5 model evaluation and inference settings."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, default=ROOT / "../datasets/mnist", help="dataset path")
-    parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s-cls.pt", help="model.pt path(s)")
+    parser.add_argument(
+        "--weights",
+        nargs="+",
+        type=str,
+        default=ROOT / "yolov5s-cls.pt",
+        help="model.pt path(s)",
+    )
     parser.add_argument("--batch-size", type=int, default=128, help="batch size")
-    parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=224, help="inference size (pixels)")
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        type=int,
+        default=224,
+        help="inference size (pixels)",
+    )
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument("--workers", type=int, default=8, help="max dataloader workers (per RANK in DDP mode)")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="max dataloader workers (per RANK in DDP mode)",
+    )
     parser.add_argument("--verbose", nargs="?", const=True, default=True, help="verbose output")
     parser.add_argument("--project", default=ROOT / "runs/val-cls", help="save to project/name")
     parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
+    parser.add_argument(
+        "--exist-ok",
+        action="store_true",
+        help="existing project/name ok, do not increment",
+    )
     parser.add_argument("--half", action="store_true", help="use FP16 half-precision inference")
     parser.add_argument("--dnn", action="store_true", help="use OpenCV DNN for ONNX inference")
     opt = parser.parse_args()

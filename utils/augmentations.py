@@ -10,7 +10,14 @@ import torch
 import torchvision.transforms as T
 from ultralytics.utils.metrics import bbox_ioa
 
-from utils.general import LOGGER, check_version, colorstr, resample_segments, segment2box
+from utils.general import (
+    LOGGER,
+    check_version,
+    colorstr,
+    resample_segments,
+    segment2box,
+)
+
 
 IMAGENET_MEAN = 0.485, 0.456, 0.406  # RGB mean
 IMAGENET_STD = 0.229, 0.224, 0.225  # RGB standard deviation
@@ -43,7 +50,10 @@ class Albumentations:
                 if v2
                 else A.ImageCompression(quality_lower=75, p=0.0),
             ]  # transforms
-            self.transform = A.Compose(T, bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]))
+            self.transform = A.Compose(
+                T,
+                bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]),
+            )
 
             LOGGER.info(prefix + ", ".join(f"{x}".replace("always_apply=False, ", "") for x in T if x.p))
         except ImportError:  # package not installed, skip
@@ -55,7 +65,10 @@ class Albumentations:
         """Applies transformations to an image and labels with probability `p`, returning updated image and labels."""
         if self.transform and random.random() < p:
             new = self.transform(image=im, bboxes=labels[:, 1:], class_labels=labels[:, 0])  # transformed
-            im, labels = new["image"], np.array([[c, *b] for c, b in zip(new["class_labels"], new["bboxes"])])
+            im, labels = (
+                new["image"],
+                np.array([[c, *b] for c, b in zip(new["class_labels"], new["bboxes"], strict=False)]),
+            )
         return im, labels
 
 
@@ -82,7 +95,15 @@ def augment_hsv(im, hgain=0.5, sgain=0.5, vgain=0.5):
         cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=im)  # no return needed
 
 
-def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
+def letterbox(
+    im,
+    new_shape=(640, 640),
+    color=(114, 114, 114),
+    auto=True,
+    scaleFill=False,
+    scaleup=True,
+    stride=32,
+):
     """Resizes and pads image to new_shape with stride-multiple constraints, returns resized image, ratio, padding."""
     shape = im.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
@@ -116,7 +137,15 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleF
 
 
 def random_perspective(
-    im, targets=(), segments=(), degrees=10, translate=0.1, scale=0.1, shear=10, perspective=0.0, border=(0, 0)
+    im,
+    targets=(),
+    segments=(),
+    degrees=10,
+    translate=0.1,
+    scale=0.1,
+    shear=10,
+    perspective=0.0,
+    border=(0, 0),
 ):
     # torchvision.transforms.RandomAffine(degrees=(-10, 10), translate=(0.1, 0.1), scale=(0.9, 1.1), shear=(-10, 10))
     # targets = [cls, xyxy]
@@ -190,7 +219,11 @@ def random_perspective(
             new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
 
         # filter candidates
-        i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.01 if use_segments else 0.10)
+        i = box_candidates(
+            box1=targets[:, 1:5].T * s,
+            box2=new.T,
+            area_thr=0.01 if use_segments else 0.10,
+        )
         targets = targets[i]
         targets[:, 1:5] = new[i]
 
@@ -283,8 +316,14 @@ def classify_albumentations(
                     color_jitter = (float(jitter),) * 3  # repeat value for brightness, contrast, saturation, 0 hue
                     T += [A.ColorJitter(*color_jitter, 0)]
         else:  # Use fixed crop for eval set (reproducibility)
-            T = [A.SmallestMaxSize(max_size=size), A.CenterCrop(height=size, width=size)]
-        T += [A.Normalize(mean=mean, std=std), ToTensorV2()]  # Normalize and convert to Tensor
+            T = [
+                A.SmallestMaxSize(max_size=size),
+                A.CenterCrop(height=size, width=size),
+            ]
+        T += [
+            A.Normalize(mean=mean, std=std),
+            ToTensorV2(),
+        ]  # Normalize and convert to Tensor
         LOGGER.info(prefix + ", ".join(f"{x}".replace("always_apply=False, ", "") for x in T if x.p))
         return A.Compose(T)
 
@@ -317,7 +356,11 @@ class CenterCrop:
         imh, imw = im.shape[:2]
         m = min(imh, imw)  # min dimension
         top, left = (imh - m) // 2, (imw - m) // 2
-        return cv2.resize(im[top : top + m, left : left + m], (self.w, self.h), interpolation=cv2.INTER_LINEAR)
+        return cv2.resize(
+            im[top : top + m, left : left + m],
+            (self.w, self.h),
+            interpolation=cv2.INTER_LINEAR,
+        )
 
 
 class ToTensor:

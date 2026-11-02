@@ -15,6 +15,7 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -174,7 +175,10 @@ class TFDWConvTranspose2d(keras.layers.Layer):
 
     def call(self, inputs):
         """Processes input through parallel convolutions and concatenates results, trimming border pixels."""
-        return tf.concat([m(x) for m, x in zip(self.conv, tf.split(inputs, self.c1, 3))], 3)[:, 1:-1, 1:-1]
+        return tf.concat(
+            [m(x) for m, x in zip(self.conv, tf.split(inputs, self.c1, 3), strict=False)],
+            3,
+        )[:, 1:-1, 1:-1]
 
 
 class TFFocus(keras.layers.Layer):
@@ -194,7 +198,12 @@ class TFFocus(keras.layers.Layer):
 
         Example x(b,w,h,c) -> y(b,w/2,h/2,4c).
         """
-        inputs = [inputs[:, ::2, ::2, :], inputs[:, 1::2, ::2, :], inputs[:, ::2, 1::2, :], inputs[:, 1::2, 1::2, :]]
+        inputs = [
+            inputs[:, ::2, ::2, :],
+            inputs[:, 1::2, ::2, :],
+            inputs[:, ::2, 1::2, :],
+            inputs[:, 1::2, 1::2, :],
+        ]
         return self.conv(tf.concat(inputs, 3))
 
 
@@ -386,7 +395,10 @@ class TFDetect(keras.layers.Layer):
         self.na = len(anchors[0]) // 2  # number of anchors
         self.grid = [tf.zeros(1)] * self.nl  # init grid
         self.anchors = tf.convert_to_tensor(w.anchors.numpy(), dtype=tf.float32)
-        self.anchor_grid = tf.reshape(self.anchors * tf.reshape(self.stride, [self.nl, 1, 1]), [self.nl, 1, -1, 1, 2])
+        self.anchor_grid = tf.reshape(
+            self.anchors * tf.reshape(self.stride, [self.nl, 1, 1]),
+            [self.nl, 1, -1, 1, 2],
+        )
         self.m = [TFConv2d(x, self.no * self.na, 1, w=w.m[i]) for i, x in enumerate(ch)]
         self.imgsz = imgsz
         for i in range(self.nl):
@@ -572,7 +584,12 @@ def parse_model(d, ch, model, imgsz):
         torch_m_ = nn.Sequential(*(m(*args) for _ in range(n))) if n > 1 else m(*args)  # module
         t = str(m)[8:-2].replace("__main__.", "")  # module type
         np = sum(x.numel() for x in torch_m_.parameters())  # number params
-        m_.i, m_.f, m_.type, m_.np = i, f, t, np  # attach index, 'from' index, type, number params
+        m_.i, m_.f, m_.type, m_.np = (
+            i,
+            f,
+            t,
+            np,
+        )  # attach index, 'from' index, type, number params
         LOGGER.info(f"{i:>3}{f!s:>18}{n!s:>3}{np:>10}  {t:<40}{args!s:<30}")  # print
         save.extend(x % i for x in ([f] if isinstance(f, int) else f) if x != -1)  # append to savelist
         layers.append(m_)
@@ -632,7 +649,13 @@ class TFModel:
             else:
                 boxes = tf.expand_dims(boxes, 2)
                 nms = tf.image.combined_non_max_suppression(
-                    boxes, scores, topk_per_class, topk_all, iou_thres, conf_thres, clip_boxes=False
+                    boxes,
+                    scores,
+                    topk_per_class,
+                    topk_all,
+                    iou_thres,
+                    conf_thres,
+                    clip_boxes=False,
                 )
             return (nms,)
         return x  # output [1,6300,85] = [xywh, conf, class0, class1, ...]
@@ -665,7 +688,11 @@ class AgnosticNMS(keras.layers.Layer):
         class_inds = tf.cast(tf.argmax(classes, axis=-1), tf.float32)
         scores_inp = tf.reduce_max(scores, -1)
         selected_inds = tf.image.non_max_suppression(
-            boxes, scores_inp, max_output_size=topk_all, iou_threshold=iou_thres, score_threshold=conf_thres
+            boxes,
+            scores_inp,
+            max_output_size=topk_all,
+            iou_threshold=iou_thres,
+            score_threshold=conf_thres,
         )
         selected_boxes = tf.gather(boxes, selected_inds)
         padded_boxes = tf.pad(
@@ -747,7 +774,15 @@ def parse_opt():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--weights", type=str, default=ROOT / "yolov5s.pt", help="weights path")
-    parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int, default=[640], help="inference size h,w")
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        nargs="+",
+        type=int,
+        default=[640],
+        help="inference size h,w",
+    )
     parser.add_argument("--batch-size", type=int, default=1, help="batch size")
     parser.add_argument("--dynamic", action="store_true", help="dynamic batch size")
     opt = parser.parse_args()

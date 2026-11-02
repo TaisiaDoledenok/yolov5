@@ -24,6 +24,7 @@ from PIL import Image
 from PIL.ImageOps import exif_transpose
 from torch import nn
 
+
 # Import 'ultralytics' package or install if missing
 try:
     import ultralytics
@@ -353,7 +354,17 @@ class Focus(nn.Module):
 
     def forward(self, x):
         """Processes input through Focus mechanism, reshaping (b,c,w,h) to (b,4c,w/2,h/2) then applies convolution."""
-        return self.conv(torch.cat((x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]), 1))
+        return self.conv(
+            torch.cat(
+                (
+                    x[..., ::2, ::2],
+                    x[..., 1::2, ::2],
+                    x[..., ::2, 1::2],
+                    x[..., 1::2, 1::2],
+                ),
+                1,
+            )
+        )
         # return self.conv(self.contract(x))
 
 
@@ -456,7 +467,15 @@ class Concat(nn.Module):
 class DetectMultiBackend(nn.Module):
     """YOLOv5 MultiBackend class for inference on various backends including PyTorch, ONNX, TensorRT, and more."""
 
-    def __init__(self, weights="yolov5s.pt", device=torch.device("cpu"), dnn=False, data=None, fp16=False, fuse=True):  # noqa: B008
+    def __init__(
+        self,
+        weights="yolov5s.pt",
+        device=torch.device("cpu"),
+        dnn=False,
+        data=None,
+        fp16=False,
+        fuse=True,
+    ):  # noqa: B008
         """Initializes DetectMultiBackend with support for various inference backends, including PyTorch and ONNX."""
         #   PyTorch:              weights = *.pt
         #   TorchScript:                    *.torchscript
@@ -470,11 +489,28 @@ class DetectMultiBackend(nn.Module):
         #   TensorFlow Lite:                *.tflite
         #   TensorFlow Edge TPU:            *_edgetpu.tflite
         #   PaddlePaddle:                   *_paddle_model
-        from models.experimental import attempt_download, attempt_load  # scoped to avoid circular import
+        from models.experimental import (  # scoped to avoid circular import
+            attempt_download,
+            attempt_load,
+        )
 
         super().__init__()
         w = str(weights[0] if isinstance(weights, list) else weights)
-        pt, jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, triton = self._model_type(w)
+        (
+            pt,
+            jit,
+            onnx,
+            xml,
+            engine,
+            coreml,
+            saved_model,
+            pb,
+            tflite,
+            edgetpu,
+            tfjs,
+            paddle,
+            triton,
+        ) = self._model_type(w)
         fp16 &= pt or jit or onnx or engine or triton  # FP16
         nhwc = coreml or saved_model or pb or tflite or edgetpu  # BHWC formats (vs torch BCWH)
         stride = 32  # default stride
@@ -483,7 +519,12 @@ class DetectMultiBackend(nn.Module):
             w = attempt_download(w)  # download if not local
 
         if pt:  # PyTorch
-            model = attempt_load(weights if isinstance(weights, list) else w, device=device, inplace=True, fuse=fuse)
+            model = attempt_load(
+                weights if isinstance(weights, list) else w,
+                device=device,
+                inplace=True,
+                fuse=fuse,
+            )
             stride = max(int(model.stride.max()), 32)  # model stride
             names = model.module.names if hasattr(model, "module") else model.names  # get class names
             model.half() if fp16 else model.float()
@@ -602,7 +643,10 @@ class DetectMultiBackend(nn.Module):
                 """Wraps a TensorFlow GraphDef for inference, returning a pruned function."""
                 x = tf.compat.v1.wrap_function(lambda: tf.compat.v1.import_graph_def(gd, name=""), [])  # wrapped
                 ge = x.graph.as_graph_element
-                return x.prune(tf.nest.map_structure(ge, inputs), tf.nest.map_structure(ge, outputs))
+                return x.prune(
+                    tf.nest.map_structure(ge, inputs),
+                    tf.nest.map_structure(ge, outputs),
+                )
 
             gd = tf.Graph().as_graph_def()  # TF GraphDef
             with open(w, "rb") as f:
@@ -620,9 +664,11 @@ class DetectMultiBackend(nn.Module):
                 )
             if edgetpu:  # TF Edge TPU https://coral.ai/software/#edgetpu-runtime
                 LOGGER.info(f"Loading {w} for TensorFlow Lite Edge TPU inference...")
-                delegate = {"Linux": "libedgetpu.so.1", "Darwin": "libedgetpu.1.dylib", "Windows": "edgetpu.dll"}[
-                    platform.system()
-                ]
+                delegate = {
+                    "Linux": "libedgetpu.so.1",
+                    "Darwin": "libedgetpu.1.dylib",
+                    "Windows": "edgetpu.dll",
+                }[platform.system()]
                 interpreter = Interpreter(model_path=w, experimental_delegates=[load_delegate(delegate)])
             else:  # TFLite
                 LOGGER.info(f"Loading {w} for TensorFlow Lite inference...")
@@ -631,7 +677,10 @@ class DetectMultiBackend(nn.Module):
             input_details = interpreter.get_input_details()  # inputs
             output_details = interpreter.get_output_details()  # outputs
             # load metadata
-            with contextlib.suppress(zipfile.BadZipFile), zipfile.ZipFile(w, "r") as model:
+            with (
+                contextlib.suppress(zipfile.BadZipFile),
+                zipfile.ZipFile(w, "r") as model,
+            ):
                 meta_file = model.namelist()[0]
                 meta = ast.literal_eval(model.read(meta_file).decode("utf-8"))
                 stride, names = int(meta["stride"]), meta["names"]
@@ -732,7 +781,10 @@ class DetectMultiBackend(nn.Module):
             y = self.model.predict({"image": im})  # coordinates are xywh normalized
             if "confidence" in y:
                 box = xywh2xyxy(y["coordinates"] * [[w, h, w, h]])  # xyxy pixels
-                conf, cls = y["confidence"].max(1), y["confidence"].argmax(1).astype(float)
+                conf, cls = (
+                    y["confidence"].max(1),
+                    y["confidence"].argmax(1).astype(float),
+                )
                 y = np.concatenate((box, conf.reshape(-1, 1), cls.reshape(-1, 1)), 1)
             else:
                 y = list(reversed(y.values()))  # reversed for segmentation models (pred, proto)
@@ -780,9 +832,21 @@ class DetectMultiBackend(nn.Module):
 
     def warmup(self, imgsz=(1, 3, 640, 640)):
         """Performs a single inference warmup to initialize model weights, accepting an `imgsz` tuple for image size."""
-        warmup_types = self.pt, self.jit, self.onnx, self.engine, self.saved_model, self.pb, self.triton
+        warmup_types = (
+            self.pt,
+            self.jit,
+            self.onnx,
+            self.engine,
+            self.saved_model,
+            self.pb,
+            self.triton,
+        )
         if any(warmup_types) and (self.device.type != "cpu" or self.triton):
-            im = torch.empty(*imgsz, dtype=torch.half if self.fp16 else torch.float, device=self.device)  # input
+            im = torch.empty(
+                *imgsz,
+                dtype=torch.half if self.fp16 else torch.float,
+                device=self.device,
+            )  # input
             for _ in range(2 if self.jit else 1):
                 self.forward(im)  # warmup
 
@@ -856,7 +920,12 @@ class AutoShape(nn.Module):
         super().__init__()
         if verbose:
             LOGGER.info("Adding AutoShape... ")
-        copy_attr(self, model, include=("yaml", "nc", "hyp", "names", "stride", "abc"), exclude=())  # copy attributes
+        copy_attr(
+            self,
+            model,
+            include=("yaml", "nc", "hyp", "names", "stride", "abc"),
+            exclude=(),
+        )  # copy attributes
         self.dmb = isinstance(model, DetectMultiBackend)  # DetectMultiBackend() instance
         self.pt = not self.dmb or model.pt  # PyTorch model
         self.model = model.eval()
@@ -907,10 +976,16 @@ class AutoShape(nn.Module):
             for i, im in enumerate(ims):
                 f = f"image{i}"  # filename
                 if isinstance(im, (str, Path)):  # filename or uri
-                    im, f = Image.open(_request_ssrf_url(str(im)).raw if str(im).startswith("http") else im), im
+                    im, f = (
+                        Image.open(_request_ssrf_url(str(im)).raw if str(im).startswith("http") else im),
+                        im,
+                    )
                     im = np.asarray(exif_transpose(im))
                 elif isinstance(im, Image.Image):  # PIL Image
-                    im, f = np.asarray(exif_transpose(im)), getattr(im, "filename", f) or f
+                    im, f = (
+                        np.asarray(exif_transpose(im)),
+                        getattr(im, "filename", f) or f,
+                    )
                 files.append(Path(f).with_suffix(".jpg").name)
                 if im.shape[0] < 5:  # image in CHW
                     im = im.transpose((1, 2, 0))  # reverse dataloader .transpose(2, 0, 1)
@@ -962,16 +1037,25 @@ class Detections:
         self.times = times  # profiling times
         self.xyxy = pred  # xyxy pixels
         self.xywh = [xyxy2xywh(x) for x in pred]  # xywh pixels
-        self.xyxyn = [x / g for x, g in zip(self.xyxy, gn)]  # xyxy normalized
-        self.xywhn = [x / g for x, g in zip(self.xywh, gn)]  # xywh normalized
+        self.xyxyn = [x / g for x, g in zip(self.xyxy, gn, strict=False)]  # xyxy normalized
+        self.xywhn = [x / g for x, g in zip(self.xywh, gn, strict=False)]  # xywh normalized
         self.n = len(self.pred)  # number of images (batch size)
         self.t = tuple(x.t / self.n * 1e3 for x in times)  # timestamps (ms)
         self.s = tuple(shape)  # inference BCHW shape
 
-    def _run(self, pprint=False, show=False, save=False, crop=False, render=False, labels=True, save_dir=Path("")):
+    def _run(
+        self,
+        pprint=False,
+        show=False,
+        save=False,
+        crop=False,
+        render=False,
+        labels=True,
+        save_dir=Path(""),
+    ):
         """Executes model predictions, displaying and/or saving outputs with optional crops and labels."""
         s, crops = "", []
-        for i, (im, pred) in enumerate(zip(self.ims, self.pred)):
+        for i, (im, pred) in enumerate(zip(self.ims, self.pred, strict=False)):
             s += f"\nimage {i + 1}/{len(self.pred)}: {im.shape[0]}x{im.shape[1]} "  # string
             if pred.shape[0]:
                 for c in pred[:, -1].unique():
@@ -1057,9 +1141,25 @@ class Detections:
         Example: print(results.pandas().xyxy[0]).
         """
         new = copy(self)  # return copy
-        ca = "xmin", "ymin", "xmax", "ymax", "confidence", "class", "name"  # xyxy columns
-        cb = "xcenter", "ycenter", "width", "height", "confidence", "class", "name"  # xywh columns
-        for k, c in zip(["xyxy", "xyxyn", "xywh", "xywhn"], [ca, ca, cb, cb]):
+        ca = (
+            "xmin",
+            "ymin",
+            "xmax",
+            "ymax",
+            "confidence",
+            "class",
+            "name",
+        )  # xyxy columns
+        cb = (
+            "xcenter",
+            "ycenter",
+            "width",
+            "height",
+            "confidence",
+            "class",
+            "name",
+        )  # xywh columns
+        for k, c in zip(["xyxy", "xyxyn", "xywh", "xywhn"], [ca, ca, cb, cb], strict=False):
             a = [[[*x[:5], int(x[5]), self.names[int(x[5])]] for x in x.tolist()] for x in getattr(self, k)]  # update
             setattr(new, k, [pd.DataFrame(x, columns=c) for x in a])
         return new

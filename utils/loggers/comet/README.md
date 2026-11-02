@@ -33,7 +33,7 @@ pip install comet_ml
 
 You can configure Comet in two ways:
 
-1. **Environment Variables:**  
+1. **Environment Variables:**
    Set your credentials directly in your environment.
 
    ```shell
@@ -43,7 +43,7 @@ You can configure Comet in two ways:
 
    Find your API key in your [Comet Account Settings](https://www.comet.com/account-settings/apiKeys).
 
-2. **Configuration File:**  
+2. **Configuration File:**
    Create a `.comet.config` file in your working directory:
 
    ```ini

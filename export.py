@@ -60,6 +60,7 @@ import pandas as pd
 import torch
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
+
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
 if str(ROOT) not in sys.path:
@@ -86,6 +87,7 @@ from utils.general import (
     yaml_save,
 )
 from utils.torch_utils import select_device, smart_inference_mode
+
 
 MACOS = platform.system() == "Darwin"  # macOS environment
 
@@ -137,7 +139,10 @@ class iOSModel(torch.nn.Module):
             ```
         """
         xywh, conf, cls = self.model(x)[0].squeeze().split((4, 1, self.nc), 1)
-        return cls * conf, xywh * self.normalize  # confidence (3780, 80), coordinates (3780, 4)
+        return (
+            cls * conf,
+            xywh * self.normalize,
+        )  # confidence (3780, 80), coordinates (3780, 4)
 
 
 def export_formats():
@@ -334,7 +339,11 @@ def export_onnx(model, im, file, opset, dynamic, simplify, prefix=colorstr("ONNX
         dynamic = {"images": {0: "batch", 2: "height", 3: "width"}}  # shape(1,3,640,640)
         if isinstance(model, SegmentationModel):
             dynamic["output0"] = {0: "batch", 1: "anchors"}  # shape(1,25200,85)
-            dynamic["output1"] = {0: "batch", 2: "mask_height", 3: "mask_width"}  # shape(1,32,160,160)
+            dynamic["output1"] = {
+                0: "batch",
+                2: "mask_height",
+                3: "mask_width",
+            }  # shape(1,32,160,160)
         elif isinstance(model, DetectionModel):
             dynamic["output0"] = {0: "batch", 1: "anchors"}  # shape(1,25200,85)
 
@@ -428,7 +437,14 @@ def export_openvino(file, metadata, half, int8, data, prefix=colorstr("OpenVINO:
             data_yaml = check_yaml(yaml_path)
             data = check_dataset(data_yaml)
             dataloader = create_dataloader(
-                data[task], imgsz=imgsz, batch_size=1, stride=32, pad=0.5, single_cls=False, rect=False, workers=workers
+                data[task],
+                imgsz=imgsz,
+                batch_size=1,
+                stride=32,
+                pad=0.5,
+                single_cls=False,
+                rect=False,
+                workers=workers,
             )[0]
             return dataloader
 
@@ -677,7 +693,12 @@ def export_engine(
             LOGGER.warning(f"{prefix} --dynamic model requires maximum --batch-size argument")
         profile = builder.create_optimization_profile()
         for inp in inputs:
-            profile.set_shape(inp.name, (1, *im.shape[1:]), (max(1, im.shape[0] // 2), *im.shape[1:]), im.shape)
+            profile.set_shape(
+                inp.name,
+                (1, *im.shape[1:]),
+                (max(1, im.shape[0] // 2), *im.shape[1:]),
+                im.shape,
+            )
         config.add_optimization_profile(profile)
 
     LOGGER.info(f"{prefix} building FP{16 if builder.platform_has_fast_fp16 and half else 32} engine as {f}")
@@ -748,7 +769,9 @@ def export_saved_model(
         check_requirements(f"tensorflow{'' if torch.cuda.is_available() else '-macos' if MACOS else '-cpu'}<=2.15.1")
 
         import tensorflow as tf
-    from tensorflow.python.framework.convert_to_constants import convert_variables_to_constants_v2
+    from tensorflow.python.framework.convert_to_constants import (
+        convert_variables_to_constants_v2,
+    )
 
     from models.tf import TFModel
 
@@ -930,7 +953,12 @@ def export_edgetpu(file, prefix=colorstr("Edge TPU:")):  # noqa: B008
     assert platform.system() == "Linux", f"export only supported on Linux. See {help_url}"
     try:
         compiler_present = (
-            subprocess.run(cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False).returncode
+            subprocess.run(
+                cmd.split(),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
             == 0
         )
     except FileNotFoundError:
@@ -940,7 +968,10 @@ def export_edgetpu(file, prefix=colorstr("Edge TPU:")):  # noqa: B008
         try:
             sudo = (
                 subprocess.run(
-                    ["sudo", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
+                    ["sudo", "--version"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 ).returncode
                 == 0
             )
@@ -1172,7 +1203,10 @@ def pipeline_coreml(model, im, file, names, y, mlmodel, prefix=colorstr("CoreML 
         out0_shape, out1_shape = (s[1], s[2] - 5), (s[1], 4)  # (3780, 80), (3780, 4)
 
     # Checks
-    nx, ny = spec.description.input[0].type.imageType.width, spec.description.input[0].type.imageType.height
+    nx, ny = (
+        spec.description.input[0].type.imageType.width,
+        spec.description.input[0].type.imageType.height,
+    )
     _na, nc = out0_shape
     # na, nc = out0.type.multiArrayType.shape  # number anchors, classes
     assert len(names) == nc, f"{len(names)} names found for nc={nc}"  # check
@@ -1415,7 +1449,10 @@ def run(
     if half and not coreml:
         im, model = im.half(), model.half()  # to FP16
     shape = tuple((y[0] if isinstance(y, tuple) else y).shape)  # model output shape
-    metadata = {"stride": int(max(model.stride)), "names": model.names}  # model metadata
+    metadata = {
+        "stride": int(max(model.stride)),
+        "names": model.names,
+    }  # model metadata
     LOGGER.info(f"\n{colorstr('PyTorch:')} starting from {file} with output shape {shape} ({file_size(file):.1f} MB)")
 
     # Exports
@@ -1453,7 +1490,14 @@ def run(
             f[6], _ = export_pb(s_model, file)
         if tflite or edgetpu:
             f[7], _ = export_tflite(
-                s_model, im, file, int8 or edgetpu, per_tensor, data=data, nms=nms, agnostic_nms=agnostic_nms
+                s_model,
+                im,
+                file,
+                int8 or edgetpu,
+                per_tensor,
+                data=data,
+                nms=nms,
+                agnostic_nms=agnostic_nms,
             )
             if edgetpu:
                 f[8], _ = export_edgetpu(file)
@@ -1507,8 +1551,22 @@ def parse_opt(known=False):
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, default=ROOT / "data/coco128.yaml", help="dataset.yaml path")
-    parser.add_argument("--weights", nargs="+", type=str, default=ROOT / "yolov5s.pt", help="model.pt path(s)")
-    parser.add_argument("--imgsz", "--img", "--img-size", nargs="+", type=int, default=[640, 640], help="image (h, w)")
+    parser.add_argument(
+        "--weights",
+        nargs="+",
+        type=str,
+        default=ROOT / "yolov5s.pt",
+        help="model.pt path(s)",
+    )
+    parser.add_argument(
+        "--imgsz",
+        "--img",
+        "--img-size",
+        nargs="+",
+        type=int,
+        default=[640, 640],
+        help="image (h, w)",
+    )
     parser.add_argument("--batch-size", type=int, default=1, help="batch size")
     parser.add_argument("--device", default="cpu", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--half", action="store_true", help="FP16 half-precision export")
@@ -1526,8 +1584,18 @@ def parse_opt(known=False):
     parser.add_argument("--workspace", type=int, default=4, help="TensorRT: workspace size (GB)")
     parser.add_argument("--nms", action="store_true", help="TF: add NMS to model")
     parser.add_argument("--agnostic-nms", action="store_true", help="TF: add agnostic NMS to model")
-    parser.add_argument("--topk-per-class", type=int, default=100, help="TF.js NMS: topk per class to keep")
-    parser.add_argument("--topk-all", type=int, default=100, help="TF.js NMS: topk for all classes to keep")
+    parser.add_argument(
+        "--topk-per-class",
+        type=int,
+        default=100,
+        help="TF.js NMS: topk per class to keep",
+    )
+    parser.add_argument(
+        "--topk-all",
+        type=int,
+        default=100,
+        help="TF.js NMS: topk for all classes to keep",
+    )
     parser.add_argument("--iou-thres", type=float, default=0.45, help="TF.js NMS: IoU threshold")
     parser.add_argument("--conf-thres", type=float, default=0.25, help="TF.js NMS: confidence threshold")
     parser.add_argument(
