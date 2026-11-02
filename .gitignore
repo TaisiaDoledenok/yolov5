@@ -56,7 +56,7 @@ requirements-original.txt
 tests/
 pyproject-original.toml
 .pre-commit-config.yaml
-.ruff_cache
+.ruff_cache/
 
 
 # ===== Логи =====
