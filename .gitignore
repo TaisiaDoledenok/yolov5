@@ -59,4 +59,4 @@ tests/
 # ===== Логи =====
 *.log
 EOF
-
+.russ_cache

@@ -124,12 +124,17 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = [
-    "E501",  # длинные строки — пусть решает formatter
+    "E501",  # длинные строки
 ]
+
+[tool.ruff.lint.isort]
+known-first-party = ["utils", "models"]
+lines-after-imports = 2
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+line-ending = "lf"
 
 [tool.docformatter]
 wrap-summaries = 120
